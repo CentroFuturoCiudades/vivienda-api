@@ -107,7 +107,7 @@ boundaries = box(*bbox)
 
 
 def fit_to_boundaries(gdf, gdf_bounds):
-  return gdf[gdf.geometry.intersects(gdf_bounds)]
+  return gdf.loc[gdf.geometry.intersects(gdf_bounds)]
 
 
 def join(df1, df2, aggs):

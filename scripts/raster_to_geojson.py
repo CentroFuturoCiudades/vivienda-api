@@ -53,7 +53,7 @@ def to_gdf(raster):
   features = polygons.pipe(
       gpd.GeoSeries, crs=raster.rio.crs
   )
-  gdf = GeoDataFrame.from_features(features)
+  gdf = GeoDataFrame.from_features(features, crs=raster.rio.crs)
   # gdf = gdf.dissolve()
   return gdf
 

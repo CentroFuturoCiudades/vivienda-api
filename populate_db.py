@@ -42,8 +42,6 @@ column_types = {
     'unused_ratio': 'REAL',
     'equipment_ratio': 'REAL',
     'num_properties': 'INTEGER',
-    'vacant_area': 'REAL',
-    'vacant_ratio': 'REAL',
     'wasteful_area': 'REAL',
     'wasteful_ratio': 'REAL',
     'used_area': 'REAL',
@@ -55,6 +53,7 @@ column_types = {
     'lot_ratio': 'REAL',
     'utilization_ratio': 'REAL',
     'combined_score': 'REAL',
+    'ALTURA': 'REAL',
 }
 
 create_table_query = f'''CREATE TABLE IF NOT EXISTS predios (
@@ -66,7 +65,10 @@ cursor.execute(create_table_query)
 
 gdf = pd.read_csv('data/processed/predios.csv')
 gdf['CLAVE_LOTE'] = gdf['CLAVE_LOTE'].astype(str)
+print(gdf.columns)
 desired_columns = [column for column in gdf.columns if column in column_types]
+gdf = gdf[desired_columns]
+print(gdf)
 insert_query = f'INSERT INTO predios ({", ".join(desired_columns)}) VALUES ({"?, " * (len(desired_columns) - 1)}?)'
 print(insert_query)
 

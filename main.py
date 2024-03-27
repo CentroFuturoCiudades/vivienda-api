@@ -63,6 +63,7 @@ async def custom_query(metric: str, condition: str = None):
     data = get_all(cursor, f'''SELECT CLAVE_LOTE as clave, ({metric}) As value FROM predios WHERE {condition}''')
   else:
     data = get_all(cursor, f'''SELECT CLAVE_LOTE as clave, ({metric}) As value FROM predios''')
+  # print(data)
   print(len(data))
   return data
 
