@@ -2,7 +2,7 @@ import geopandas as gpd
 import pandas as pd
 import osmnx as ox
 from shapely.geometry import box, Polygon, MultiPolygon
-from utils.utils import normalize, remove_outliers, fill, bbox, boundaries, map_sector_to_sector, join
+from utils.utils import normalize, remove_outliers, fill, bbox, boundaries, map_sector_to_sector, join, COLUMN_ID
 import matplotlib.pyplot as plt
 from osmnx.distance import nearest_nodes
 import numpy as np
@@ -10,9 +10,8 @@ from shapely.geometry import Point
 from itertools import product
 import networkx as nx
 import sys
+import argparse
 
-OUTPUT_FOLDER = sys.args[1]
-FOLDER_FINAL = sys.args[2]
 PARK_TAGS = {
     'leisure': 'park',
     'landuse': 'recreation_ground'
@@ -51,14 +50,26 @@ def overlay_multiple(gdf_initial: gpd.GeoDataFrame, gdfs: list[gpd.GeoDataFrame]
   return previous_gdfs[::-1]
 
 
-if __name__ == '__main__':
-  gdf_bounds = gpd.read_file(f'{OUTPUT_FOLDER}/poligono.geojson', crs='EPSG:4326').unary_union
+def get_args():
+  parser = argparse.ArgumentParser(description='Join establishments with lots')
+  parser.add_argument('input_folder', type=str, help='The folder with the input data')
+  parser.add_argument('output_folder', type=str, help='The folder to save the output data')
+  parser.add_argument('column_id', type=str, help='The column to use as the identifier for the lots')
+  return parser.parse_args()
 
-  gdf_lots = gpd.read_file(f'{FOLDER_FINAL}/lots.geojson', crs='EPSG:4326')
+
+if __name__ == '__main__':
+  args = get_args()
+  INPUT_FOLDER = args.input_folder
+  OUTPUT_FOLDER = args.output_folder
+  COLUMN_ID = args.column_id
+
+  gdf_bounds = gpd.read_file(f'{INPUT_FOLDER}/poligono.geojson', crs='EPSG:4326').unary_union
+
+  gdf_lots = gpd.read_file(f'{OUTPUT_FOLDER}/predios.geojson', crs='EPSG:4326')
   gdf_lots['lot_area'] = gdf_lots.to_crs('EPSG:6933').area
 
   # Load the polygons for parking lots
-  # ["highway"!~"footway|pedestrian|path|steps|track|sidewalk"]'
   G_service_highways = ox.graph_from_polygon(
       gdf_bounds,
       custom_filter=PARKING_FILTER,
@@ -86,7 +97,7 @@ if __name__ == '__main__':
   gdf_equipment['geometry'] = gdf_equipment['geometry'].intersection(gdf_bounds)
 
   # Load the polygons for the building footprints
-  gdf_buildings = gpd.read_file(f'{OUTPUT_FOLDER}/buildings.geojson', crs='EPSG:4326')
+  gdf_buildings = gpd.read_file(f'{INPUT_FOLDER}/buildings.geojson', crs='EPSG:4326')
 
   gdfs_mapping = [
       {"name": 'unused', "color": 'blue'},
@@ -98,7 +109,7 @@ if __name__ == '__main__':
   ]
 
   # Load the polygons for the builtup areas
-  gdf_builtup = gpd.read_file(f'{OUTPUT_FOLDER}/builtup.geojson', crs='EPSG:4326').reset_index(drop=True)
+  gdf_builtup = gpd.read_file(f'{INPUT_FOLDER}/builtup.geojson', crs='EPSG:4326').reset_index(drop=True)
 
   gdfs = overlay_multiple(
       gdf_lots, [gdf_buildings, gdf_equipment, gdf_parks, gdf_parking, gdf_builtup])
@@ -107,11 +118,11 @@ if __name__ == '__main__':
     gdf.plot(ax=ax, color=item['color'], alpha=0.5)
   plt.show()
   for gdf, item in zip(gdfs, gdfs_mapping):
-    gdf = gdf.set_index('CLAVE_LOTE').dissolve(by='CLAVE_LOTE')
+    gdf = gdf.set_index(COLUMN_ID).dissolve(by=COLUMN_ID)
     column_area = f'{item["name"]}_area'
     column_ratio = f'{item["name"]}_ratio'
     gdf[column_area] = gdf.to_crs('EPSG:6933').area
     gdf[column_ratio] = gdf[column_area] / gdf['lot_area']
-    gdf = gdf.reset_index()[['CLAVE_LOTE', column_area, column_ratio, 'geometry']]
+    gdf = gdf.reset_index()[[COLUMN_ID, column_area, column_ratio, 'geometry']]
     print(gdf)
-    gdf.to_file(f'{FOLDER_FINAL}/{item["name"]}.geojson', driver='GeoJSON')
+    gdf.to_file(f'{OUTPUT_FOLDER}/{item["name"]}.geojson', driver='GeoJSON')

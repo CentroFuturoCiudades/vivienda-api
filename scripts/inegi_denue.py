@@ -1,12 +1,11 @@
 import geopandas as gpd
 import pandas as pd
-from utils.utils import map_sector_to_sector, join
+from utils.utils import map_sector_to_sector, join, COLUMN_ID
 import matplotlib.pyplot as plt
 import sys
+import argparse
 
-OUTPUT_FOLDER = sys.argv[1]
 BUFFER_PARKING = 0.00002
-FOLDER_FINAL = sys.argv[2]
 
 # Join the establishments with the lots by their proximity in each block
 # TODO: Ensure establishments are distributed to the correct lots
@@ -35,12 +34,12 @@ def assign_by_buffer(gdf_block_lots: gpd.GeoDataFrame, gdf_denue: gpd.GeoDataFra
       joined_in_block = joined_in_block.rename(columns={'CVE_GEO_right': 'CVE_GEO'})
       gdf_temp = pd.concat([gdf_temp, joined_in_block])
   gdf_temp = gdf_temp.reset_index(drop=True)
-  establishment_counts = gdf_temp.groupby(['CVE_GEO', 'CLAVE_LOTE']).agg({
+  establishment_counts = gdf_temp.groupby(['CVE_GEO', COLUMN_ID]).agg({
       'num_establishments': 'count',
       'num_workers': 'sum',
       'sector': lambda x: dict(x.value_counts())
   })
-  gdf_lots = gdf_block_lots.merge(establishment_counts, on=['CVE_GEO', 'CLAVE_LOTE'], how='left')
+  gdf_lots = gdf_block_lots.merge(establishment_counts, on=['CVE_GEO', COLUMN_ID], how='left')
   return gdf_lots
 
 
@@ -49,12 +48,13 @@ def assign_by_proximity(gdf_block_lots: gpd.GeoDataFrame, gdf_denue: gpd.GeoData
   _gdf_block_lots = gdf_block_lots.to_crs('EPSG:32614')
   _gdf_denue['num_establishments'] = 1
   new_gdf = gpd.sjoin_nearest(_gdf_denue, _gdf_block_lots, how='left', max_distance=10)
-  final = new_gdf.groupby('CLAVE_LOTE').agg({
+  print(new_gdf.columns)
+  final = new_gdf.groupby(COLUMN_ID).agg({
       'num_establishments': 'count',
       'num_workers': 'sum',
       'sector': lambda x: dict(x.value_counts())
   })
-  final = _gdf_block_lots.merge(final, on='CLAVE_LOTE', how='left')
+  final = _gdf_block_lots.merge(final, on=COLUMN_ID, how='left')
 #   fig, ax = plt.subplots()
 #   _gdf_block_lots.plot(ax=ax, color='gray')
 #   final.plot(ax=ax, column='num_establishments')
@@ -63,51 +63,37 @@ def assign_by_proximity(gdf_block_lots: gpd.GeoDataFrame, gdf_denue: gpd.GeoData
   return final.to_crs('EPSG:4326')
 
 
-if __name__ == '__main__':
-  # Load the polygons for the lots
-  gdf_predios_dt = gpd.read_file(f'{OUTPUT_FOLDER}/predios.geojson').to_crs('EPSG:4326')
-  gdf_predios_dt = gdf_predios_dt.dissolve(by='CLAVE_LOTE').reset_index()
-  gdf_predios_dt
-  print(gdf_predios_dt)
-  gdf_predios_dt['ALTURA'] = gdf_predios_dt['ALTURA'].apply(lambda x: x.split(
-      ' ')[0] if x and str(x).find(' ') > 0 else x).fillna(1).astype(float)
-  gdf_predios_dt['predio_area'] = gdf_predios_dt['geometry'].to_crs('EPSG:6933').area
-  gdf_predios_dt = gdf_predios_dt[gdf_predios_dt['predio_area'] > 0]
+def get_args():
+  parser = argparse.ArgumentParser(description='Join establishments with lots')
+  parser.add_argument('input_folder', type=str, help='The folder containing the input data')
+  parser.add_argument('output_folder', type=str, help='The folder to save the output data')
+  parser.add_argument('column_id', type=str, help='The column to use as the identifier for the lots')
+  return parser.parse_args()
 
-  # Load the polygons for the blocks
-  BLOCK_NUMERIC_COLUMNS = [
-      'VIVTOT',
-      'TVIVHAB',
-      'VIVPAR_DES',
-      'VPH_AUTOM',
-      'POBTOT',
-  ]
-  gdf_blocks = gpd.read_file(f'{OUTPUT_FOLDER}/blocks.geojson').set_index('CVE_GEO')
-  gdf_blocks['block_area'] = gdf_blocks['geometry'].to_crs('EPSG:6933').area
-  gdf_blocks[BLOCK_NUMERIC_COLUMNS] = gdf_blocks[BLOCK_NUMERIC_COLUMNS].applymap(
-      lambda x: 0 if x == '*' or x == 'N/D' else x).astype(float)
+
+if __name__ == '__main__':
+  parser = get_args()
+  INPUT_FOLDER = parser.input_folder
+  OUTPUT_FOLDER = parser.output_folder
+  COLUMN_ID = parser.column_id
+
+  # Load the polygons for the lots
+  gdf_lots = gpd.read_file(f'{INPUT_FOLDER}/blocks.geojson').to_crs('EPSG:4326')
+  gdf_lots['area'] = gdf_lots.to_crs('EPSG:6933').area
+
+  columns = ['VIVTOT', 'TVIVHAB', 'VIVPAR_DES', 'VPH_AUTOM', 'POBTOT']
+  gdf_lots[columns] = gdf_lots[columns].apply(pd.to_numeric, errors='coerce').fillna(0)
 
   # Load the coordinates for the establishments
-  gdf_denue = gpd.read_file(f'{OUTPUT_FOLDER}/denue.geojson', crs='EPSG:4326')
+  gdf_denue = gpd.read_file(f'{INPUT_FOLDER}/denue.geojson', crs='EPSG:4326')
   gdf_denue = gdf_denue.rename(columns={'id': 'DENUE_ID'})
-
   # Get which sector each establishment belongs to
   gdf_denue['sector'] = gdf_denue['codigo_act'].apply(lambda x: str(x)[:2]).astype(int)
   gdf_denue['sector'] = gdf_denue['sector'].apply(map_sector_to_sector)
-  gdf_denue['date'] = pd.to_datetime(gdf_denue['fecha_alta'], format='%Y-%m')
-  gdf_denue['year'] = gdf_denue['date'].dt.year
+  # gdf_denue['date'] = pd.to_datetime(gdf_denue['fecha_alta'], format='%Y-%m')
+  # gdf_denue['year'] = gdf_denue['date'].dt.year
 
-  # Join demographic information with the lots
-  gdf_block_lots = join(gdf_blocks, gdf_predios_dt, {
-      'block_area': 'first',
-      'CVEGEO': 'first',
-      **{column: 'first' for column in BLOCK_NUMERIC_COLUMNS}
-  }).rename(columns={'CVEGEO': 'CVE_GEO'})
-  # TODO: Find an algorithm to accuratetly distribute demographic information for each lot
-  gdf_block_lots['block_percentage'] = gdf_block_lots.apply(
-      lambda row: row['predio_area'] /
-      row['block_area'] if row['block_area'] > row['predio_area'] else 1,
-      axis=1)
-  gdf_lots = assign_by_proximity(gdf_block_lots, gdf_denue)
-  gdf_lots.reset_index()[['CLAVE_LOTE', 'geometry']].to_file(f'{FOLDER_FINAL}/lots.geojson', driver='GeoJSON')
-  gdf_lots.reset_index().drop(columns=['geometry']).to_csv(f"{FOLDER_FINAL}/predios.csv", index=False)
+  gdf_lots = assign_by_proximity(gdf_lots, gdf_denue)
+  print(gdf_lots)
+  gdf_lots.reset_index()[[COLUMN_ID, 'geometry']].to_file(f'{OUTPUT_FOLDER}/predios.geojson', driver='GeoJSON')
+  gdf_lots.reset_index().drop(columns=['geometry']).to_csv(f"{OUTPUT_FOLDER}/predios.csv", index=False)

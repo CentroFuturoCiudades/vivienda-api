@@ -3,14 +3,15 @@ import pandas as pd
 import geopandas as gpd
 import networkx as nx
 import numpy as np
-from utils.utils import normalize
+from utils.utils import normalize, COLUMN_ID
 import matplotlib.pyplot as plt
 import sys
+import argparse
 
 # walk radius of 1 mile
 WALK_RADIUS = 1609.34
 SECTORS = ['comercio', 'servicios', 'salud', 'educacion']
-FOLDER_FINAL = sys.argv[1]
+OUTPUT_FOLDER = sys.argv[1]
 
 
 def calculate_batch_walking_times(G, sources, targets):
@@ -32,6 +33,7 @@ def calculate_batch_walking_times(G, sources, targets):
 def get_nearby_services(gdf_lots, gdf_denue, radius=WALK_RADIUS, sectors=SECTORS, decay_rate=0.1):
   # Ensure both GeoDataFrames use the same CRS for geographic calculations
   gdf_lots = gdf_lots.to_crs("EPSG:4326")
+  gdf_lots = gdf_lots.drop(columns=['sector'])
   gdf_denue = gdf_denue.to_crs("EPSG:4326")
   gdf_denue = gdf_denue.loc[gdf_denue['sector'].isin(sectors)]
 
@@ -73,15 +75,21 @@ def get_nearby_services(gdf_lots, gdf_denue, radius=WALK_RADIUS, sectors=SECTORS
       'sector': lambda x: dict(x.value_counts())
   }).reset_index()
   test = pd.merge(
-      gdf_lots.drop(
-          columns=['sector']),
+      gdf_lots,
       gdf_denue_within_radius,
       left_on='nearest_node',
       right_on='source',
       how='left')
+  print(gdf_lots.columns.to_list())
+  print(gdf_denue_within_radius.columns.to_list())
+  print(test.columns.to_list())
+  print(test['sector'])
+  test['sector'] = test['sector'].fillna({i: 0 for i in sectors})
   test['services_nearby'] = 0
+  print(test['sector'])
   for sector in SECTORS:
-    test[f'adj_{sector}'] = test['sector'].apply(lambda x: x.get(sector, 0))
+    # check if type dict
+    test[f'adj_{sector}'] = test['sector'].apply(lambda x: x.get(sector, 0) if isinstance(x, dict) else 0)
     test['services_nearby'] += test[f'adj_{sector}']
   test = gpd.GeoDataFrame(test.drop(columns=["sector"]), geometry=gdf_lots.geometry, crs="EPSG:4326")
 
@@ -91,31 +99,42 @@ def get_nearby_services(gdf_lots, gdf_denue, radius=WALK_RADIUS, sectors=SECTORS
       'salud': 0.4,
       'educacion': 0.3
   }
-  test['total_score'] = 0
+  test['accessibility_score'] = 0
   for sector in SECTORS:
-    test['total_score'] += normalize(test[f'adj_{sector}']) * sector_weight_mapping[sector]
-  return test.set_index('CLAVE_LOTE')
+    test['accessibility_score'] += normalize(test[f'adj_{sector}']) * sector_weight_mapping[sector]
+  test['accessibility_score'] = normalize(test['accessibility_score'])
+  return test.set_index(COLUMN_ID)
+
+
+def get_args():
+  parser = argparse.ArgumentParser(description='Join establishments with lots')
+  parser.add_argument('output_folder', type=str, help='The folder to save the output data')
+  parser.add_argument('column_id', type=str, help='The column to use as the identifier for the lots')
+  return parser.parse_args()
 
 
 if __name__ == '__main__':
-  gdf_lots = gpd.read_file(f'{FOLDER_FINAL}/lots.geojson').to_crs('EPSG:4326')
-  df_lots = pd.read_csv(f'{FOLDER_FINAL}/predios.csv').set_index('CLAVE_LOTE')
+  args = get_args()
+  OUTPUT_FOLDER = args.output_folder
+  COLUMN_ID = args.column_id
+
+  gdf_lots = gpd.read_file(f'{OUTPUT_FOLDER}/predios.geojson').to_crs('EPSG:4326')
+  df_lots = pd.read_csv(f'{OUTPUT_FOLDER}/predios.csv').set_index(COLUMN_ID)
   df_lots.index = df_lots.index.map(str)
-  gdf_denue = gpd.read_file(f'{FOLDER_FINAL}/denue.geojson').to_crs('EPSG:4326')
-  gdf_lots = gdf_lots.merge(df_lots, left_on='CLAVE_LOTE', right_on='CLAVE_LOTE', how='left')
-  print(gdf_lots)
+  gdf_denue = gpd.read_file(f'{OUTPUT_FOLDER}/denue.geojson').to_crs('EPSG:4326')
+  gdf_lots = gdf_lots.merge(df_lots, left_on=COLUMN_ID, right_on=COLUMN_ID, how='left')
 
   for sector in SECTORS:
     gdf_lots[sector] = gdf_lots['sector'].apply(lambda x: x.get(sector, 0) if isinstance(x, dict) else 0)
   gdf_lots = get_nearby_services(gdf_lots, gdf_denue)
 
   fig, ax = plt.subplots(ncols=5)
-  gdf_lots.plot(ax=ax[0], column='total_score')
+  gdf_lots.plot(ax=ax[0], column='accessibility_score')
   gdf_lots.plot(ax=ax[1], column='adj_comercio')
   gdf_lots.plot(ax=ax[2], column='comercio')
   gdf_lots.plot(ax=ax[3], column='adj_servicios')
   gdf_lots.plot(ax=ax[4], column='servicios')
   plt.show()
 
-  gdf_lots.reset_index()[['CLAVE_LOTE', 'geometry']].to_file(f'{FOLDER_FINAL}/lots.geojson', driver='GeoJSON')
-  gdf_lots.reset_index().drop(columns=['geometry']).to_csv(f"{FOLDER_FINAL}/predios.csv", index=False)
+  gdf_lots.reset_index()[[COLUMN_ID, 'geometry']].to_file(f'{OUTPUT_FOLDER}/predios.geojson', driver='GeoJSON')
+  gdf_lots.reset_index().drop(columns=['geometry']).to_csv(f"{OUTPUT_FOLDER}/predios.csv", index=False)

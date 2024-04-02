@@ -24,7 +24,7 @@ tools = [
                     },
                     "condition": {
                         "type": "string",
-                        "description": "Parte de condición para filtrar filas, basada en criterios definidos por el usuario y considerando solo la métrica definida. Ejemplos de condiciones válidas incluyen 'utilization_ratio > 0.5' o 'POBTOT > 1000'. Esencial para enfocar el análisis en puntos de datos relevantes."
+                        "description": "Parte de condición para filtrar filas, basada en criterios definidos por el usuario y considerando solo la métrica definida. Ejemplos de condiciones válidas incluyen 'underutilized_ratio > 0.5' o 'POBTOT > 1000'. Esencial para enfocar el análisis en puntos de datos relevantes."
                     }
                 },
                 "required": ["metric"]
@@ -168,7 +168,7 @@ Columnas Detalladas para la Construcción de Consultas:
 | comercio            | Número de establecimientos comerciales a 15 minutos a pie. Util para analizar accesibilidad comercial y el potencial para desarrollo minorista.| Media: 17.30, Min: 0, 25%: 7, 50%: 14, 75%: 24, Max: 76|
 | servicios           | Servicios generales como restaurantes a 15 minutos a pie. Util para entender la provisión de servicios generales y comodidades públicas.| Media: 9.58, Min: 0, 25%: 5, 50%: 9, 75%: 13, Max: 29|
 | services_nearby     | Indicador general de servicios dentro de distancia a pie, incluyendo salud, educación, comercio y otros servicios. Util para evaluar la accesibilidad general a servicios esenciales.| Media: 42.16, Min: 0, 25%: 21, 50%: 37, 75%: 58, Max: 146|
-| total_score         | Puntuación general que evalúa la accesibilidad del lote basada en todas la diversidad de servicios y establecimientos cercanos. Util para una evaluación completa del lote para planificación estratégica y desarrollo.| Media: 31.75, Min: 0, 25%: 16, 50%: 27, 75%: 44, Max: 106|
+| accessibility_score | Puntuación general que evalúa la accesibilidad del lote basada en todas la diversidad de servicios y establecimientos cercanos. Util para una evaluación completa del lote para planificación estratégica y desarrollo.| Media: 31.75, Min: 0, 25%: 16, 50%: 27, 75%: 44, Max: 106|
 | combined_score      | Puntuación compuesta que evalúa la deseabilidad del lote basada en varios factores. Util para priorizar lotes para inversión, desarrollo o análisis detallado adicional.| Media: 0.24, Min: 0, 25%: 0.13, 50%: 0.20, 75%: 0.31, Max: 1|
 
 Entiendo que buscas una adaptación completa de la tabla al español. Aquí tienes una versión ajustada:

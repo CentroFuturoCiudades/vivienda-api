@@ -72,3 +72,4 @@ uvicorn==0.28.1
 wheel==0.41.2
 xarray==2024.2.0
 yarl==1.9.4
+earthengine-api==0.1.313

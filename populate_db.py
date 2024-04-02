@@ -2,6 +2,9 @@ import sqlite3
 import geopandas as gpd
 import pandas as pd
 import os
+from utils.utils import COLUMN_ID
+
+FOLDER = 'data/processed_primavera'
 
 if os.path.exists('data/predios.db'):
   os.remove('data/predios.db')
@@ -10,7 +13,7 @@ conn = sqlite3.connect('data/predios.db')
 cursor = conn.cursor()
 
 column_types = {
-    'CLAVE_LOTE': 'TEXT',
+    COLUMN_ID: 'TEXT',
     'VIVTOT': 'INTEGER',
     'TVIVHAB': 'INTEGER',
     'VIVPAR_DES': 'INTEGER',
@@ -33,7 +36,7 @@ column_types = {
     'adj_servicios': 'INTEGER',
     'adj_salud': 'INTEGER',
     'adj_educacion': 'INTEGER',
-    'total_score': 'REAL',
+    'accessibility_score': 'REAL',
     'lot_area': 'REAL',
     'building_ratio': 'REAL',
     'parking_ratio': 'REAL',
@@ -47,11 +50,11 @@ column_types = {
     'used_area': 'REAL',
     'used_ratio': 'REAL',
     'occupancy': 'INTEGER',
-    'utilization_area': 'REAL',
+    'underutilized_area': 'REAL',
     'occupancy_density': 'REAL',
     'home_density': 'REAL',
     'lot_ratio': 'REAL',
-    'utilization_ratio': 'REAL',
+    'underutilized_ratio': 'REAL',
     'combined_score': 'REAL',
     'ALTURA': 'REAL',
 }
@@ -63,8 +66,8 @@ print(create_table_query)
 cursor.execute(create_table_query)
 
 
-gdf = pd.read_csv('data/processed/predios.csv')
-gdf['CLAVE_LOTE'] = gdf['CLAVE_LOTE'].astype(str)
+gdf = pd.read_csv(f'{FOLDER}/predios.csv')
+gdf[COLUMN_ID] = gdf[COLUMN_ID].astype(str)
 print(gdf.columns)
 desired_columns = [column for column in gdf.columns if column in column_types]
 gdf = gdf[desired_columns]
