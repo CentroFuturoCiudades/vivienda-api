@@ -1,16 +1,8 @@
 import geopandas as gpd
 import pandas as pd
-from utils.utils import map_sector_to_sector, join, COLUMN_ID
 import matplotlib.pyplot as plt
-import sys
 import argparse
-
-BUFFER_PARKING = 0.00002
-
-# Join the establishments with the lots by their proximity in each block
-# TODO: Ensure establishments are distributed to the correct lots
-# TODO: Explore using buffers to join establishments with lots
-# TODO: Find a faster and more elegant way to join establishments considering their block
+from utils.constants import AMENITIES_MAPPING
 
 
 def assign_by_buffer(gdf_block_lots: gpd.GeoDataFrame, gdf_denue: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -34,12 +26,12 @@ def assign_by_buffer(gdf_block_lots: gpd.GeoDataFrame, gdf_denue: gpd.GeoDataFra
       joined_in_block = joined_in_block.rename(columns={'CVE_GEO_right': 'CVE_GEO'})
       gdf_temp = pd.concat([gdf_temp, joined_in_block])
   gdf_temp = gdf_temp.reset_index(drop=True)
-  establishment_counts = gdf_temp.groupby(['CVE_GEO', COLUMN_ID]).agg({
+  establishment_counts = gdf_temp.groupby(['CVE_GEO', 'ID']).agg({
       'num_establishments': 'count',
       'num_workers': 'sum',
       'sector': lambda x: dict(x.value_counts())
   })
-  gdf_lots = gdf_block_lots.merge(establishment_counts, on=['CVE_GEO', COLUMN_ID], how='left')
+  gdf_lots = gdf_block_lots.merge(establishment_counts, on=['CVE_GEO', 'ID'], how='left')
   return gdf_lots
 
 
@@ -48,52 +40,48 @@ def assign_by_proximity(gdf_block_lots: gpd.GeoDataFrame, gdf_denue: gpd.GeoData
   _gdf_block_lots = gdf_block_lots.to_crs('EPSG:32614')
   _gdf_denue['num_establishments'] = 1
   new_gdf = gpd.sjoin_nearest(_gdf_denue, _gdf_block_lots, how='left', max_distance=10)
-  print(new_gdf.columns)
-  final = new_gdf.groupby(COLUMN_ID).agg({
+  sector_columns = [x['column'] for x in AMENITIES_MAPPING if x['type'] == 'establishment']
+  gdf_final = new_gdf.groupby('ID').agg({
       'num_establishments': 'count',
       'num_workers': 'sum',
-      'sector': lambda x: dict(x.value_counts())
+      **{x: 'sum' for x in sector_columns}
   })
-  final = _gdf_block_lots.merge(final, on=COLUMN_ID, how='left')
-#   fig, ax = plt.subplots()
-#   _gdf_block_lots.plot(ax=ax, color='gray')
-#   final.plot(ax=ax, column='num_establishments')
-#   _gdf_denue.plot(ax=ax, color='red', markersize=1)
-#   plt.show()
-  return final.to_crs('EPSG:4326')
+  gdf_final = _gdf_block_lots.merge(gdf_final, on='ID', how='left')
+  columns = ['num_establishments', 'num_workers', *sector_columns]
+  gdf_final[columns] = gdf_final[columns].fillna(0)
+  return gdf_final.to_crs('EPSG:4326')
 
 
 def get_args():
   parser = argparse.ArgumentParser(description='Join establishments with lots')
-  parser.add_argument('input_folder', type=str, help='The folder containing the input data')
-  parser.add_argument('output_folder', type=str, help='The folder to save the output data')
-  parser.add_argument('column_id', type=str, help='The column to use as the identifier for the lots')
+  parser.add_argument('lots_file', type=str, help='The file with all the data')
+  parser.add_argument('gpkg_file', type=str, help='The file with all the data')
+  parser.add_argument('-v', '--view', action='store_true')
   return parser.parse_args()
 
 
 if __name__ == '__main__':
-  parser = get_args()
-  INPUT_FOLDER = parser.input_folder
-  OUTPUT_FOLDER = parser.output_folder
-  COLUMN_ID = parser.column_id
+  args = get_args()
 
   # Load the polygons for the lots
-  gdf_lots = gpd.read_file(f'{INPUT_FOLDER}/blocks.geojson').to_crs('EPSG:4326')
-  gdf_lots['area'] = gdf_lots.to_crs('EPSG:6933').area
-
-  columns = ['VIVTOT', 'TVIVHAB', 'VIVPAR_DES', 'VPH_AUTOM', 'POBTOT']
-  gdf_lots[columns] = gdf_lots[columns].apply(pd.to_numeric, errors='coerce').fillna(0)
+  gdf_lots = gpd.read_file(args.lots_file, layer='population').to_crs('EPSG:4326')
+  gdf_lots['area'] = gdf_lots.to_crs('EPSG:6933').area / 10_000
 
   # Load the coordinates for the establishments
-  gdf_denue = gpd.read_file(f'{INPUT_FOLDER}/denue.geojson', crs='EPSG:4326')
+  gdf_denue = gpd.read_file(args.gpkg_file, layer='establishments', crs='EPSG:4326')
   gdf_denue = gdf_denue.rename(columns={'id': 'DENUE_ID'})
   # Get which sector each establishment belongs to
-  gdf_denue['sector'] = gdf_denue['codigo_act'].apply(lambda x: str(x)[:2]).astype(int)
-  gdf_denue['sector'] = gdf_denue['sector'].apply(map_sector_to_sector)
+  gdf_denue['codigo_act'] = gdf_denue['codigo_act'].astype(str)
+  columns_establishments = [x for x in AMENITIES_MAPPING if x['type'] == 'establishment']
+  for item in columns_establishments:
+    gdf_denue[item['column']] = gdf_denue.query(item['query']).any(axis=1)
+    gdf_denue[item['column']] = gdf_denue[item['column']].fillna(0).astype(int)
   # gdf_denue['date'] = pd.to_datetime(gdf_denue['fecha_alta'], format='%Y-%m')
   # gdf_denue['year'] = gdf_denue['date'].dt.year
 
   gdf_lots = assign_by_proximity(gdf_lots, gdf_denue)
-  print(gdf_lots)
-  gdf_lots.reset_index()[[COLUMN_ID, 'geometry']].to_file(f'{OUTPUT_FOLDER}/predios.geojson', driver='GeoJSON')
-  gdf_lots.reset_index().drop(columns=['geometry']).to_csv(f"{OUTPUT_FOLDER}/predios.csv", index=False)
+  gdf_lots.to_file(args.lots_file, layer='establishments', driver='GPKG')
+
+  if args.view:
+    gdf_lots.plot(column='supermercado', legend=True)
+    plt.show()

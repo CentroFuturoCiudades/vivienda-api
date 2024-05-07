@@ -7,6 +7,7 @@ from scripts.raster_to_geojson import to_gdf
 import rioxarray
 import re
 import sys
+import argparse
 
 regex_ppl = r'([0-9]+) a ([0-9]+) personas'
 BUFFER_DISTANCE = 1609.34
@@ -19,7 +20,7 @@ def map_sector_to_sector(codigo_act: int) -> str:
         return sector['sector']
 
 
-def blean_builtup(gdf_bounds: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+def clean_builup(gdf_bounds: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
   raster = rioxarray.open_rasterio('data/builtup.tif')
   gdf_builtup = to_gdf(raster).dissolve()
   gdf_builtup = gdf_bounds.overlay(gdf_builtup, how='difference', keep_geom_type=False)
@@ -81,18 +82,33 @@ def small_buildings(gdf_bounds: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
   return gdf_buildings
 
 
+def get_args():
+  parser = argparse.ArgumentParser(description='Join establishments with lots')
+  parser.add_argument('input_folder', type=str, help='The folder with the input data')
+  parser.add_argument('column_id', type=str, help='The column to use as the identifier for the lots')
+  return parser.parse_args()
+
+
 if __name__ == '__main__':
-  FOLDER = sys.argv[1]
-  gdf_bounds = gpd.read_file(f'{FOLDER}/poligono.geojson', crs='EPSG:4326')
+  args = get_args()
+  INPUT_FOLDER = args.input_folder
+  COLUMN_ID = args.column_id
 
-  gdf_builtup = blean_builtup(gdf_bounds)
-  gdf_builtup.to_file(f'{FOLDER}/builtup.geojson', driver='GeoJSON')
+  gdf_bounds = gpd.read_file(f'{INPUT_FOLDER}/poligono.geojson', crs='EPSG:4326')
 
-  gdf_denue = clean_denue(gdf_bounds)
-  gdf_denue.to_file(f'{FOLDER}/denue.geojson', driver='GeoJSON')
+  # gdf_builtup = clean_builup(gdf_bounds)
+  # gdf_builtup.to_file(f'{INPUT_FOLDER}/builtup.geojson', driver='GeoJSON')
+
+  # gdf_denue = clean_denue(gdf_bounds)
+  # gdf_denue.to_file(f'{INPUT_FOLDER}/denue.geojson', driver='GeoJSON')
 
   gdf_blocks = clean_blocks(gdf_bounds)
-  gdf_blocks.to_file(f'{FOLDER}/blocks.geojson', driver='GeoJSON')
+  gdf_lots = gpd.read_file(f'{INPUT_FOLDER}/predios.geojson').to_crs('EPSG:4326')
+  gdf_lots['CVE_GEO'] = gdf_lots['CVEGEO']
+  print(gdf_blocks.columns.to_list())
+  print(gdf_lots.columns.to_list())
 
-  gdf_buildings = small_buildings(gdf_bounds)
-  gdf_buildings.to_file(f'{FOLDER}/buildings.geojson', driver='GeoJSON')
+  # gdf_blocks.to_file(f'{INPUT_FOLDER}/blocks.geojson', driver='GeoJSON')
+
+  # gdf_buildings = small_buildings(gdf_bounds)
+  # gdf_buildings.to_file(f'{INPUT_FOLDER}/buildings.geojson', driver='GeoJSON')

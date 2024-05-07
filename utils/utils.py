@@ -7,6 +7,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import box
 import osmnx as ox
+import ee
 
 load_dotenv()
 
@@ -20,6 +21,22 @@ YEARS = np.arange(DEFAULT_YEAR_START, DEFAULT_YEAR_END + DEFAULT_YEAR_INTERVAL, 
 HEX_RESOLUTION = 9
 HEX_ID = f'hex_id_{HEX_RESOLUTION}'
 COLUMN_ID = 'ID'
+
+
+def gdf_to_ee_polygon(gdf: gpd.GeoDataFrame):
+  polygon_geojson = gdf.geometry.iloc[0].__geo_interface__
+  geom_type = polygon_geojson['type']
+
+  if geom_type == 'Polygon':
+    coords = polygon_geojson['coordinates'][0]
+  elif geom_type == 'MultiPolygon':
+    # This flattens the list of lists for multipolygon to fit into ee.Geometry.Polygon
+    coords = [coord for part in polygon_geojson['coordinates'] for coord in part[0]]
+  else:
+    raise ValueError(f"Unsupported geometry type: {geom_type}")
+
+  ee_polygon = ee.Geometry.Polygon(coords)
+  return ee_polygon
 
 
 def normalized_limit(x, min, max):

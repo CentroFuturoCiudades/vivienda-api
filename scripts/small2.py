@@ -21,14 +21,25 @@ URL_MZA_2010 = 'https://www.inegi.org.mx/contenidos/programas/ccpv/2010/datosabi
 URL_MZA_2020 = 'https://www.inegi.org.mx/contenidos/programas/ccpv/2020/datosabiertos/ageb_manzana/ageb_mza_urbana_{0}_cpv2020_csv.zip'
 CSV_PATH_MZA_2010 = 'temp_data/resultados_ageb_urbana_{0}_cpv2010/conjunto_de_datos/resultados_ageb_urbana_{0}_cpv2010.csv'
 CSV_PATH_MZA_2020 = 'temp_data/ageb_mza_urbana_{0}_cpv2020/conjunto_de_datos/conjunto_de_datos_ageb_urbana_{0}_cpv2020.csv'
-STATE_CODE = 25
+DENUE = 'https://www.inegi.org.mx/contenidos/masiva/denue/denue_{0}_csv.zip'
+CSV_DENUE = 'temp_data/conjunto_de_datos/denue_inegi_{0}_.csv'
+STATE_CODE = 19
 
 ee.Initialize()
 
 
 def gdf_to_ee_polygon(gdf: gpd.GeoDataFrame):
   polygon_geojson = gdf.geometry.iloc[0].__geo_interface__
-  coords = polygon_geojson['coordinates'][0][0]
+  geom_type = polygon_geojson['type']
+
+  if geom_type == 'Polygon':
+    coords = polygon_geojson['coordinates'][0]
+  elif geom_type == 'MultiPolygon':
+    # This flattens the list of lists for multipolygon to fit into ee.Geometry.Polygon
+    coords = [coord for part in polygon_geojson['coordinates'] for coord in part[0]]
+  else:
+    raise ValueError(f"Unsupported geometry type: {geom_type}")
+
   ee_polygon = ee.Geometry.Polygon(coords)
   return ee_polygon
 
@@ -61,12 +72,19 @@ def process_green_area(gdf_bounds: gpd.GeoDataFrame):
 
 
 def clean_denue(gdf_bounds: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-  df_denue = pd.read_csv('data/Primavera/denue_inegi_25_.csv', encoding='latin-1')
+  response = requests.get(DENUE.format(STATE_CODE))
+  zip_content = BytesIO(response.content)
+  with zipfile.ZipFile(zip_content) as zip_ref:
+    zip_ref.extractall("temp_data")
+  df_denue = pd.read_csv(CSV_DENUE.format(STATE_CODE), encoding='latin-1')
+  # df_denue = pd.read_csv('data/Primavera/denue_inegi_25_.csv', encoding='latin-1')
+  print(df_denue.columns.to_list())
+  print(df_denue)
   geometry_denue = gpd.points_from_xy(df_denue.longitud, df_denue.latitud)
   gdf_denue = gpd.GeoDataFrame(df_denue, geometry=geometry_denue, crs='EPSG:4326')
-  print(df_denue)
   _gdf_bounds = gdf_bounds.to_crs('EPSG:32614').buffer(BUFFER_DISTANCE).to_crs('EPSG:4326')
   gdf_denue = fit_to_boundaries(gdf_denue, _gdf_bounds.unary_union)
+  print(df_denue)
   gdf_denue = fill(gdf_denue, ['cve_ent', 'cve_mun', 'cve_loc', 'ageb', 'manzana'])
   gdf_denue['per_ocu'] = gdf_denue['per_ocu'].map(lambda x: re.match(regex_ppl, x.strip()))
   gdf_denue['per_ocu'] = gdf_denue['per_ocu'].map(lambda x: (int(x.groups()[0]) + int(x.groups()[1])) / 2 if x else x)
@@ -78,8 +96,10 @@ def clean_denue(gdf_bounds: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
 
 def process_blocks(gdf_bounds: gpd.GeoDataFrame):
-  gdf_predios = gpd.read_file(f'{INPUT_FOLDER}/predios.geojson').to_crs(epsg=4326)
-  gdf_predios = gpd.sjoin(gdf_predios, gdf_bounds, predicate='within')
+  gdf_blocks = gpd.read_file(f'{INPUT_FOLDER}/manzanas.geojson').to_crs('EPSG:4326')
+  gdf_blocks = gpd.sjoin(gdf_blocks, gdf_bounds, predicate='within').drop(columns=['index_right'])
+  gdf_lots = gpd.read_file(f'{INPUT_FOLDER}/predios.geojson', crs='EPSG:4326')
+  gdf_lots = gpd.sjoin(gdf_lots, gdf_blocks, how='left', predicate='intersects')
 
   response = requests.get(URL_MZA_2020.format(STATE_CODE))
   zip_content = BytesIO(response.content)
@@ -92,11 +112,35 @@ def process_blocks(gdf_bounds: gpd.GeoDataFrame):
       df['LOC'].astype(str).str.zfill(4) + \
       df['AGEB'].astype(str).str.zfill(4) + \
       df['MZA'].astype(str).str.zfill(3)
-  gdf_predios = gdf_predios.merge(df, on='CVEGEO', how='inner')
-  gdf_predios = gdf_predios.rename(columns={'CVEGEO': 'CVE_GEO'})
-  gdf_predios['ID'] = gdf_predios['CVE_GEO']
+  gdf_lots = gdf_lots.merge(df, on='CVEGEO', how='inner')
+  gdf_lots = gdf_lots.rename(columns={'CVEGEO': 'CVE_GEO'})
+  gdf_lots['ID'] = gdf_lots['CVE_GEO']
   # gdf_predios[['CVEGEO', 'geometry']].to_file(f'{FOLDER}/blocks.geojson', driver='GeoJSON')
-  gdf_predios.drop(columns=['index_right']).to_file(f'{INPUT_FOLDER}/blocks.geojson', driver='GeoJSON')
+  gdf_lots.drop(columns=['index_right']).to_file(f'{INPUT_FOLDER}/blocks.geojson', driver='GeoJSON')
+
+
+# def process_blocks(gdf_bounds: gpd.GeoDataFrame):
+#   gdf_blocks = gpd.read_file(f'{INPUT_FOLDER}/predios.geojson').to_crs(epsg=4326)
+#   gdf_blocks = gpd.sjoin(gdf_blocks, gdf_bounds, predicate='within')
+#   print(gdf_blocks.columns.to_list())
+#   exit()
+
+#   response = requests.get(URL_MZA_2020.format(STATE_CODE))
+#   zip_content = BytesIO(response.content)
+#   with zipfile.ZipFile(zip_content) as zip_ref:
+#     zip_ref.extractall("temp_data")
+#   df = pd.read_csv(CSV_PATH_MZA_2020.format(STATE_CODE))
+#   shutil.rmtree('temp_data')
+#   df['CVEGEO'] = df['ENTIDAD'].astype(str).str.zfill(2) + \
+#       df['MUN'].astype(str).str.zfill(3) + \
+#       df['LOC'].astype(str).str.zfill(4) + \
+#       df['AGEB'].astype(str).str.zfill(4) + \
+#       df['MZA'].astype(str).str.zfill(3)
+#   gdf_blocks = gdf_blocks.merge(df, on='CVEGEO', how='inner')
+#   gdf_blocks = gdf_blocks.rename(columns={'CVEGEO': 'CVE_GEO'})
+#   gdf_blocks['ID'] = gdf_blocks['CVE_GEO']
+#   # gdf_predios[['CVEGEO', 'geometry']].to_file(f'{FOLDER}/blocks.geojson', driver='GeoJSON')
+#   gdf_blocks.drop(columns=['index_right']).to_file(f'{INPUT_FOLDER}/blocks.geojson', driver='GeoJSON')
 
 
 def process_buildings(gdf_bounds: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -126,10 +170,10 @@ if __name__ == '__main__':
   gdf_bounds = gpd.read_file(f'{INPUT_FOLDER}/poligono.geojson', crs='EPSG:4326')
 
   process_blocks(gdf_bounds)
-  # gdf_bounds = gpd.read_file(f'{FOLDER}/blocks.geojson', crs='EPSG:4326')
   process_green_area(gdf_bounds)
 
   gdf_denue = clean_denue(gdf_bounds)
+  print(gdf_denue)
   gdf_denue.to_file(f'{INPUT_FOLDER}/denue.geojson', driver='GeoJSON')
 
   process_buildings(gdf_bounds)

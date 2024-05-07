@@ -91,55 +91,6 @@ def pretty_print_conversation(messages):
     elif message["role"] == "function":
       print(colored(f"function ({message['name']}): {message['content']}\n", role_to_color[message["role"]]))
 
-
-# PROMPT = """
-# ChatGPT, as an expert data analyst specializing in urban development,
-# housing, and demographic analysis, your role is to interpret complex
-# datasets and assist in crafting insightful pandas DataFrame queries. You
-# leverage extensive data collected from INEGI for demographics, DENUE for
-# establishments, and detailed analyses of land use and accessibility.
-# Your queries help uncover patterns in housing utilization, development
-# potential, and accessibility to services based on a sophisticated
-# understanding of urban dynamics.
-
-# Approach to Constructing Queries:
-
-# Analysis Requirement Understanding: First, clarify the user's analytical goal, such as identifying lots with potential for development or assessing the impact of nearby services on housing values.
-# Query Crafting: Use pandas DataFrame methods to construct queries. For filtering data, .query('condition') is used, where 'condition' involves columns and operations (e.g., df.query('POBTOT > 1000')). For creating new metrics, operations on DataFrame columns directly (e.g., df['new_metric'] = df['POBTOT'] / df['TVIVHAB']) are performed.
-# Detailed Data Columns for Query Construction:
-# | Metric                        | Description                                                                                                                     | Use Case                                                                                     |
-# |-------------------------------|---------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-# | `POBTOT`                      | Total Population within the lot's vicinity.                                                                                     | Analyzing demographic density and potential market size.                                    |
-# | `TVIVHAB`                     | Total number of Inhabited Housing Units.                                                                                        | Gauging residential occupancy and housing demand.                                           |
-# | `VIVPAR_DES`                  | Number of Uninhabited Private Dwellings.                                                                                        | Identifying potential housing stock or areas for development.                               |
-# | `VIVTOT`                      | Total Housing Units, including both occupied and unoccupied.                                                                    | Understanding the full scope of housing availability.                                       |
-# | `VPH_AUTOM`                   | Housing Units with access to a Car.                                                                                             | Assessing transportation amenities and potential need for parking infrastructure.          |
-# | `building_area`               | Total Building Area within the lot.                                                                                             | Evaluating the extent of developed infrastructure versus potential for new development.    |
-# | `building_ratio`              | Ratio of Building Area to total lot area.                                                                                       | Measuring development density and adherence to zoning regulations.                         |
-# | `combined_score`              | A composite score evaluating lot desirability based on multiple factors.                                                        | Prioritizing lots for investment, development, or further detailed analysis.               |
-# | `comercio`                    | Number of Commercial Establishments within a 15-minute walk.                                                                    | Analyzing commercial accessibility and the potential for retail development.               |
-# | `continued_utilization_ratio` | Ratio indicating ongoing use of the lot, suggesting continuous or long-term utilization.                                        | Identifying lots with stable usage patterns for sustained investments.                     |
-# | `educacion`                   | Number of Educational Services within a 15-minute walk.                                                                         | Assessing educational infrastructure and potential demand for family-oriented housing.     |
-# | `green_area`                  | Area dedicated to green spaces within the lot.                                                                                  | Gauging environmental sustainability and recreational spaces.                              |
-# | `green_ratio`                 | Ratio of Green Area to total lot area.                                                                                          | Measuring the balance between development and green spaces.                                |
-# | `home_density`                | Density of Housing Units per unit of land area.                                                                                 | Understanding residential density for zoning and planning purposes.                        |
-# | `num_establishments`          | Total number of commercial, health, and educational establishments in or near the lot.                                          | Evaluating the commercial and social infrastructure surrounding the lot.                   |
-# | `num_properties`              | Number of Properties within the lot, indicating diversity of ownership or usage.                                                | Assessing property distribution for potential consolidation or development opportunities. |
-# | `num_workers`                 | Number of Workers employed within or in proximity to the lot, indicative of economic activity.                                  | Analyzing economic vibrancy and employment opportunities in the area.                      |
-# | `occupancy`                   | Occupancy Rate, reflecting the proportion of utilized space or dwellings.                                                       | Identifying under or over-utilized spaces for optimization.                                |
-# | `occupancy_density`           | Density of Occupants per unit of land or dwelling area.                                                                         | Assessing the intensity of land use in terms of human occupancy.                           |
-# | `equipment_area`              | Area dedicated to equipment and infrastructure within the lot.                                                                  | Evaluating the provision of essential services and infrastructure.                         |
-# | `equipment_ratio`             | Ratio of Equipment Area to total lot area, indicating infrastructure development level.                                         | Measuring infrastructure development relative to the lot size.                             |
-# | `parking_area`                | Area dedicated to parking within the lot.                                                                                       | Assessing the adequacy of parking facilities for residents and visitors.                   |
-# | `parking_ratio`               | Ratio of Parking Area to total lot area, indicating the provision of parking relative to lot size.                              | Gauging the balance between parking provision and other land uses.                         |
-# | `salud`                       | Number of Health Services within a 15-minute walk.                                                                              | Analyzing healthcare accessibility and infrastructure.                                     |
-# | `services_nearby`             | General indicator of services within walking distance, encompassing salud, educacion, comercio, and other services.             | Evaluating overall accessibility to essential services.                                    |
-# | `servicios`                   | General services like restaurants within a 15-minute walk.                                                                      | Understanding the provision of general services and public amenities.                      |
-# | `total_score`                 | An overall score evaluating the lot based on all available metrics.                                                             | Comprehensive lot assessment for strategic planning and development.                       |
-
-# Your expertise enables the translation of raw data into actionable insights, guiding urban planning and development decisions. By intelligently combining and manipulating these data points, craft queries that reflect nuanced user requests, ensuring a deep and actionable analysis.
-# """
-
 PROMPT = """
 Como analista de datos especializado en desarrollo urbano, vivienda y análisis demográfico, tu rol es interpretar conjuntos de datos complejos y asistir en la elaboración de consultas SQL perspicaces. Utilizas extensos datos recolectados de INEGI para demografía, DENUE para establecimientos, y análisis detallados de uso de tierra y accesibilidad. Tus consultas ayudan a descubrir patrones en la utilización de viviendas, el potencial de desarrollo y la accesibilidad a servicios, basándose en un entendimiento sofisticado de la dinámica urbana.
 
@@ -170,10 +121,6 @@ Columnas Detalladas para la Construcción de Consultas:
 | services_nearby     | Indicador general de servicios dentro de distancia a pie, incluyendo salud, educación, comercio y otros servicios. Util para evaluar la accesibilidad general a servicios esenciales.| Media: 42.16, Min: 0, 25%: 21, 50%: 37, 75%: 58, Max: 146|
 | accessibility_score | Puntuación general que evalúa la accesibilidad del lote basada en todas la diversidad de servicios y establecimientos cercanos. Util para una evaluación completa del lote para planificación estratégica y desarrollo.| Media: 31.75, Min: 0, 25%: 16, 50%: 27, 75%: 44, Max: 106|
 | combined_score      | Puntuación compuesta que evalúa la deseabilidad del lote basada en varios factores. Util para priorizar lotes para inversión, desarrollo o análisis detallado adicional.| Media: 0.24, Min: 0, 25%: 0.13, 50%: 0.20, 75%: 0.31, Max: 1|
-
-Entiendo que buscas una adaptación completa de la tabla al español. Aquí tienes una versión ajustada:
-
-Tu experiencia permite la traducción de datos brutos en insights accionables, guiando las decisiones de planificación y desarrollo urbano con consultas SQL inteligentemente combinadas y manipuladas, reflejando solicitudes de usuario matizadas para un análisis profundo y accionable.
 """
 
 messages = []
@@ -207,3 +154,27 @@ def chat_response(user_message):
 
 if __name__ == "__main__":
   chat_response("Could you create a query to identify lots with high utilization but still have significant room for development based on the current population density?")
+
+
+# if __name__ == "__main__":
+#   gdf = gpd.read_file("data/datos.geojson", crs="EPSG:4326")
+#   gdf = gdf[['POBTOT',
+#              'VIVPAR_DES',
+#              'VIVTOT',
+#              'building_ratio',
+#              'green_ratio',
+#              'equipment_ratio',
+#              'parking_ratio',
+#              'unused_ratio',
+#              'wasteful_ratio',
+#              'num_workers',
+#              'num_establishments',
+#              'educacion',
+#              'salud',
+#              'comercio',
+#              'servicios',
+#              'services_nearby',
+#              'accessibility_score',
+#              'combined_score']]
+#   pd.options.display.float_format = "{:,.2f}".format
+#   print(gdf.describe().transpose()[['mean', 'min', '25%', '50%', '75%', 'max']])

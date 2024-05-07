@@ -3,7 +3,7 @@ import pandas as pd
 import geopandas as gpd
 import networkx as nx
 import numpy as np
-from utils.utils import normalize, COLUMN_ID
+from utils.utils import normalize
 import matplotlib.pyplot as plt
 import sys
 import argparse
@@ -80,13 +80,8 @@ def get_nearby_services(gdf_lots, gdf_denue, radius=WALK_RADIUS, sectors=SECTORS
       left_on='nearest_node',
       right_on='source',
       how='left')
-  print(gdf_lots.columns.to_list())
-  print(gdf_denue_within_radius.columns.to_list())
-  print(test.columns.to_list())
-  print(test['sector'])
   test['sector'] = test['sector'].fillna({i: 0 for i in sectors})
   test['services_nearby'] = 0
-  print(test['sector'])
   for sector in SECTORS:
     # check if type dict
     test[f'adj_{sector}'] = test['sector'].apply(lambda x: x.get(sector, 0) if isinstance(x, dict) else 0)
@@ -119,13 +114,11 @@ if __name__ == '__main__':
   COLUMN_ID = args.column_id
 
   gdf_lots = gpd.read_file(f'{OUTPUT_FOLDER}/predios.geojson').to_crs('EPSG:4326')
-  df_lots = pd.read_csv(f'{OUTPUT_FOLDER}/predios.csv').set_index(COLUMN_ID)
-  df_lots.index = df_lots.index.map(str)
+  gdf_lots[COLUMN_ID] = gdf_lots[COLUMN_ID].astype(str)
+  df_lots = pd.read_csv(f'{OUTPUT_FOLDER}/predios.csv', dtype={COLUMN_ID: str})
   gdf_denue = gpd.read_file(f'{OUTPUT_FOLDER}/denue.geojson').to_crs('EPSG:4326')
-  gdf_lots = gdf_lots.merge(df_lots, left_on=COLUMN_ID, right_on=COLUMN_ID, how='left')
+  gdf_lots = pd.merge(gdf_lots, df_lots, on=COLUMN_ID, how='left')
 
-  for sector in SECTORS:
-    gdf_lots[sector] = gdf_lots['sector'].apply(lambda x: x.get(sector, 0) if isinstance(x, dict) else 0)
   gdf_lots = get_nearby_services(gdf_lots, gdf_denue)
 
   fig, ax = plt.subplots(ncols=5)

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from chat import chat_response, messages
 from pydantic import BaseModel
@@ -8,86 +8,96 @@ import json
 import sqlite3
 from typing import Annotated
 import pandas as pd
-from utils.utils import normalize, calculate_walking_distance, COLUMN_ID
+from utils.utils import normalize, calculate_walking_distance
 import matplotlib.pyplot as plt
 from osmnx.distance import nearest_nodes
 import osmnx as ox
 import numpy as np
+import json
+from typing import Dict, Any
+from scripts.accessibility import get_all_info, load_network
 
 app = FastAPI()
-FOLDER = "data/processed_primavera"
+FOLDER = "data/la_primavera"
+PROJECTS_MAPPING = {
+    "DT": "data/distritotec",
+    "primavera": "data/la_primavera"
+}
+WALK_RADIUS = 1609.34
 
 # add rout for new chat request
-origins = [
+ORIGINS = [
     "*",
 ]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-def dict_factory(cursor, row):
-  d = {}
-  for idx, col in enumerate(cursor.description):
-    d[col[0]] = row[idx]
-  return d
-
-
-class Item(BaseModel):
-  message: str
-
-
-conn = sqlite3.connect('data/predios.db')
-cursor = conn.cursor()
-
-
 @app.post("/chat")
-async def chat_request(item: Item):
-  response = chat_response(item.message)
+async def chat_request(item: Dict[str, str]):
+  response = chat_response(item['message'])
   print(response)
   return {"history": messages, **response}
 
 
-@app.get("/coords/")
+@app.get("/project/{project_name}")
+async def change_project(project_name: str):
+  global FOLDER
+  FOLDER = PROJECTS_MAPPING.get(project_name)
+
+
+@app.get("/coords")
 async def get_coordinates():
-  gdf = gpd.read_file(f"{FOLDER}/predios.geojson", crs="EPSG:4326")
-  geom = gdf.unary_union
-  return { "latitud": geom.centroid.y, "longitud": geom.centroid.x }
+  gdf_bounds = gpd.read_file(f'{FOLDER}/bounds.geojson', crs='EPSG:4326')
+  geom = gdf_bounds.unary_union
+  return {"latitud": geom.centroid.y, "longitud": geom.centroid.x}
 
 
 @app.get("/geojson/{clave}")
 async def get_geojson(clave: str):
-  print(f"{FOLDER}/{clave}.geojson")
   return FileResponse(f"{FOLDER}/{clave}.geojson")
 
 
-@app.get("/query")
-async def custom_query(metric: str, condition: str = None):
-  print(condition, metric)
+@app.post("/query")
+async def custom_query(payload: Dict[Any, Any]):
+  metric = payload.get('metric')
+  condition = payload.get('condition')
+  proximity_mapping = payload.get('accessibility_info')
+  conn = sqlite3.connect(f'{FOLDER}/predios.db')
+  cursor = conn.cursor()
   if condition:
-    data = get_all(cursor, f'''SELECT {COLUMN_ID} as clave, ({metric}) As value FROM predios WHERE {condition}''')
+    data = get_all(cursor, f'''SELECT ID, ({metric}) As value, latitud, longitud FROM predios WHERE {condition}''')
   else:
-    data = get_all(cursor, f'''SELECT {COLUMN_ID} as clave, ({metric}) As value FROM predios''')
-  # print(data)
-  print(len(data))
-  return data
+    data = get_all(cursor, f'''SELECT ID, ({metric}) As value, latitud, longitud FROM predios''')
+  df_lots = pd.DataFrame(data)
+  df_lots['ID'] = df_lots['ID'].astype(int).astype(str)
+  df_lots['value'] = df_lots['value'].fillna(0)
 
+  if metric == 'minutes':
+    gdf_bounds = gpd.read_file(f'{FOLDER}/bounds.geojson', crs='EPSG:4326')
+    pedestrian_network = load_network('data/pedestrian_network.hd5', gdf_bounds, WALK_RADIUS)
+    pedestrian_network.precompute(WALK_RADIUS)
+    df_lots['node_ids'] = pedestrian_network.get_node_ids(df_lots.longitud, df_lots.latitud)
+    gdf_aggregate = gpd.read_file("data/lots.gpkg", layer='points_accessibility', crs='EPSG:4326')
 
-WALK_RADIUS = 1609.34 / 4
-SECTORS = ['comercio', 'servicios', 'salud', 'educacion']
+    df_accessibility = get_all_info(pedestrian_network, gdf_aggregate, proximity_mapping)
+    df_lots = df_lots.merge(df_accessibility, left_on='node_ids', right_index=True, how='left')
+    df_lots = df_lots[['ID', 'minutes']].rename(columns={'minutes': 'value'})
+  return df_lots[['ID', 'value']].to_dict(orient='records')
 
 
 @app.get("/predios/")
 async def get_info(predio: Annotated[list[str] | None, Query()] = None):
-  data = get_all(cursor, f'''SELECT * FROM predios WHERE {COLUMN_ID} IN ({', '.join(predio)})''')
-  print(data)
-  # reduce data to only one predio, sum all the values
+  conn = sqlite3.connect(f'{FOLDER}/predios.db')
+  cursor = conn.cursor()
+  data = get_all(cursor, f'''SELECT * FROM predios WHERE ID IN ({', '.join(predio)})''')
   df = pd.DataFrame(data)
-  df = df.drop(columns=[COLUMN_ID, 'num_properties']).agg({
+  df = df.drop(columns=['ID', 'num_properties']).agg({
       "building_ratio": "mean",
       "unused_ratio": "mean",
       "green_ratio": "mean",
@@ -96,31 +106,28 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
       "wasteful_ratio": "mean",
       "underutilized_ratio": "mean",
       "equipment_ratio": "mean",
-      "services_nearby": "mean",
+      "building_area": "sum",
+      "unused_area": "sum",
+      "green_area": "sum",
+      "parking_area": "sum",
+      "park_area": "sum",
+      "wasteful_area": "sum",
+      "underutilized_area": "sum",
+      "equipment_area": "sum",
       "num_establishments": "sum",
       "num_workers": "sum",
       "POBTOT": "mean",
       "VIVTOT": "mean",
       "VIVPAR_DES": "mean",
-      "comercio": "mean",
       "servicios": "mean",
       "salud": "mean",
       "educacion": "mean",
-      "accessibility_score": "mean",
-      "adj_comercio": "mean",
-      "adj_servicios": "mean",
-      "adj_salud": "mean",
-      "adj_educacion": "mean",
+      "accessibility": "mean",
+      "minutes": "mean",
+      "latitud": "mean",
+      "longitud": "mean",
   })
-  print(predio)
-  gdf_lots = gpd.read_file(f"{FOLDER}/predios.geojson", crs="EPSG:4326")
-  gdf_lots = gdf_lots[gdf_lots[COLUMN_ID].isin(predio)]
-  gdf_denue = gpd.read_file(f"{FOLDER}/denue.geojson", crs="EPSG:4326")
-  gdf_lots['latitud'] = gdf_lots['geometry'].centroid.y
-  gdf_lots['longitud'] = gdf_lots['geometry'].centroid.x
-  first = gdf_lots.drop(columns=['geometry']).iloc[0]
-  print(df.to_dict())
-  return {**df.to_dict(), **first.to_dict()}
+  return df.to_dict()
 
 
 def get_all(cursor, query):
@@ -129,29 +136,3 @@ def get_all(cursor, query):
   results = output_obj.fetchall()
   data = [{output_obj.description[i][0]: row[i] for i in range(len(row))} for row in results]
   return data
-
-
-if __name__ == "__main__":
-  gdf = gpd.read_file("data/datos.geojson", crs="EPSG:4326")
-  gdf = gdf[['POBTOT',
-             'VIVPAR_DES',
-             'VIVTOT',
-             'building_ratio',
-             'green_ratio',
-             'equipment_ratio',
-             'parking_ratio',
-             'unused_ratio',
-             'wasteful_ratio',
-             'num_workers',
-             'num_establishments',
-             'educacion',
-             'salud',
-             'comercio',
-             'servicios',
-             'services_nearby',
-             'accessibility_score',
-             'combined_score']]
-  pd.options.display.float_format = "{:,.2f}".format
-  print(gdf.describe().transpose()[['mean', 'min', '25%', '50%', '75%', 'max']])
-  # data = get_all(cursor, '''SELECT COLUMN_ID, underutilized_ratio FROM predios WHERE POBTOT > 200''')
-  # print(data)

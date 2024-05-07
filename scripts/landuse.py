@@ -2,7 +2,6 @@ import geopandas as gpd
 import pandas as pd
 import osmnx as ox
 from shapely.geometry import box, Polygon, MultiPolygon
-from utils.utils import normalize, remove_outliers, fill, bbox, boundaries, map_sector_to_sector, join, COLUMN_ID
 import matplotlib.pyplot as plt
 from osmnx.distance import nearest_nodes
 import numpy as np
@@ -12,35 +11,42 @@ import networkx as nx
 import sys
 import argparse
 
-PARK_TAGS = {
-    'leisure': 'park',
-    'landuse': 'recreation_ground'
-}
-EQUIPMENT_TAGS = {
-    'amenity': [
-        'place_of_worship',
-        'school',
-        'university'],
-    'leisure': [
-        'sports_centre',
-        'pitch',
-        'stadium'],
-    'building': ['school'],
-    'landuse': ['cemetery']
-}
-PARKING_FILTER = '["highway"~"service"]'
-PARKING_TAGS = {
-    'amenity': 'parking'
-}
-BUFFER_PARKING = 0.00002
+from utils.utils import remove_outliers, normalize
+from utils.constants import PARKING_FILTER, PARKING_TAGS, PARK_TAGS, EQUIPMENT_TAGS, BUFFER_PARKING
+
+# def overlay_multiple(gdf_initial: gpd.GeoDataFrame, gdfs: list[gpd.GeoDataFrame]) -> list[gpd.GeoDataFrame]:
+#     results = []
+#     # gdf_initial = gdf_initial[gdf_initial.geometry.type.isin(['Polygon', 'MultiPolygon'])][['geometry']].dissolve()
+#     gdf_initial = gdf_initial[['geometry']]
+#     union_gdf = None
+#     for gdf in gdfs:
+#         # gdf = gdf[gdf.geometry.type.isin(['Polygon', 'MultiPolygon'])][['geometry']]#.dissolve()
+#         gdf = gdf[['geometry']]
+#         gdf = gdf_initial.overlay(gdf, how='intersection')
+#         gdf = gdf[gdf.geometry.type.isin(['Polygon', 'MultiPolygon'])]
+#         if union_gdf is not None:
+#           gdf = gdf.overlay(union_gdf, how='difference')
+#           union_gdf = union_gdf.overlay(gdf, how='union')
+#         else:
+#           union_gdf = gdf
+#         union_gdf = union_gdf[union_gdf.geometry.type.isin(['Polygon', 'MultiPolygon'])]
+#         print(union_gdf.geometry.type.unique())
+#         results.append(gdf)
+#     gdf_lots = gdf_initial.overlay(union_gdf, how='difference')
+#     gdf_lots = gdf_lots[gdf_lots.geometry.type.isin(['Polygon', 'MultiPolygon'])]
+#     print(gdf_lots.geometry.type.unique())
+#     results.append(gdf_lots)
+
+#     # Reverse the list to maintain the order of overlays
+#     return results[::-1]
 
 
 def overlay_multiple(gdf_initial: gpd.GeoDataFrame, gdfs: list[gpd.GeoDataFrame]) -> gpd.GeoDataFrame:
   previous_gdfs = []
   gdf_lots = gdf_initial.reset_index()
   for gdf in gdfs:
-    gdf = gdf.dissolve()
-    gdf_lots = gdf_lots.overlay(gdf, how='difference', keep_geom_type=False)
+    gdf = gdf[gdf.geometry.type.isin(['Polygon', 'MultiPolygon'])][['geometry']]
+    gdf_lots = gdf_lots.overlay(gdf, how='difference')
     gdf_filtered = gdf[gdf.geometry.type.isin(['Polygon', 'MultiPolygon'])]
     gdf = gdf_initial.reset_index().overlay(gdf_filtered, how='intersection', keep_geom_type=False)
     for previous_gdf in previous_gdfs:
@@ -52,22 +58,18 @@ def overlay_multiple(gdf_initial: gpd.GeoDataFrame, gdfs: list[gpd.GeoDataFrame]
 
 def get_args():
   parser = argparse.ArgumentParser(description='Join establishments with lots')
-  parser.add_argument('input_folder', type=str, help='The folder with the input data')
-  parser.add_argument('output_folder', type=str, help='The folder to save the output data')
-  parser.add_argument('column_id', type=str, help='The column to use as the identifier for the lots')
+  parser.add_argument('lots_file', type=str, help='The file with all the data')
+  parser.add_argument('gpkg_file', type=str, help='The file with all the data')
+  parser.add_argument('-v', '--view', action='store_true')
   return parser.parse_args()
 
 
 if __name__ == '__main__':
   args = get_args()
-  INPUT_FOLDER = args.input_folder
-  OUTPUT_FOLDER = args.output_folder
-  COLUMN_ID = args.column_id
 
-  gdf_bounds = gpd.read_file(f'{INPUT_FOLDER}/poligono.geojson', crs='EPSG:4326').unary_union
-
-  gdf_lots = gpd.read_file(f'{OUTPUT_FOLDER}/predios.geojson', crs='EPSG:4326')
-  gdf_lots['lot_area'] = gdf_lots.to_crs('EPSG:6933').area
+  gdf_bounds = gpd.read_file(args.gpkg_file, layer='bounds', crs='EPSG:4326').unary_union
+  gdf_lots = gpd.read_file(args.lots_file, layer='establishments', crs='EPSG:4326')
+  gdf_lots['lot_area'] = gdf_lots.to_crs('EPSG:6933').area / 10_000
 
   # Load the polygons for parking lots
   G_service_highways = ox.graph_from_polygon(
@@ -96,33 +98,25 @@ if __name__ == '__main__':
   gdf_equipment = gdf_equipment[gdf_equipment['element_type'] != 'node']
   gdf_equipment['geometry'] = gdf_equipment['geometry'].intersection(gdf_bounds)
 
-  # Load the polygons for the building footprints
-  gdf_buildings = gpd.read_file(f'{INPUT_FOLDER}/buildings.geojson', crs='EPSG:4326')
+  gdf_buildings = gpd.read_file(args.gpkg_file, layer='buildings', crs='EPSG:4326')
+  gdf_vegetation = gpd.read_file(args.gpkg_file, layer='vegetation', crs='EPSG:4326').reset_index(drop=True)
 
-  gdfs_mapping = [
-      {"name": 'unused', "color": 'blue'},
-      {"name": 'green', "color": 'lightgreen'},
-      {"name": 'parking', "color": 'gray'},
-      {"name": 'park', "color": 'green'},
-      {"name": 'equipment', "color": 'red'},
-      {"name": 'building', "color": 'orange'},
-  ]
-
-  # Load the polygons for the builtup areas
-  gdf_builtup = gpd.read_file(f'{INPUT_FOLDER}/builtup.geojson', crs='EPSG:4326').reset_index(drop=True)
-
-  gdfs = overlay_multiple(
-      gdf_lots, [gdf_buildings, gdf_equipment, gdf_parks, gdf_parking, gdf_builtup])
-  fig, ax = plt.subplots()
-  for gdf, item in zip(gdfs, gdfs_mapping):
-    gdf.plot(ax=ax, color=item['color'], alpha=0.5)
-  plt.show()
-  for gdf, item in zip(gdfs, gdfs_mapping):
-    gdf = gdf.set_index(COLUMN_ID).dissolve(by=COLUMN_ID)
+  gdfs = overlay_multiple(gdf_lots, [gdf_buildings, gdf_equipment, gdf_parks, gdf_parking, gdf_vegetation])
+  if args.view:
+    fig, ax = plt.subplots()
+    for gdf, item in zip(gdfs, GDFS_MAPPING):
+      gdf.plot(ax=ax, color=item['color'], alpha=0.5)
+    plt.show()
+  for gdf, item in zip(gdfs, GDFS_MAPPING):
+    gdf = gdf.set_index('ID').dissolve(by='ID')
     column_area = f'{item["name"]}_area'
     column_ratio = f'{item["name"]}_ratio'
-    gdf[column_area] = gdf.to_crs('EPSG:6933').area
+    gdf[column_area] = gdf.to_crs('EPSG:6933').area / 10_000
     gdf[column_ratio] = gdf[column_area] / gdf['lot_area']
-    gdf = gdf.reset_index()[[COLUMN_ID, column_area, column_ratio, 'geometry']]
-    print(gdf)
-    gdf.to_file(f'{OUTPUT_FOLDER}/{item["name"]}.geojson', driver='GeoJSON')
+    gdf = gdf.reset_index()[['ID', column_area, column_ratio, 'geometry']]
+    gdf.to_file(args.lots_file, layer=item['name'], driver='GPKG')
+    gdf_lots = gdf_lots.merge(gdf.drop(columns='geometry'), on='ID', how='left')
+    gdf_lots[[column_area, column_ratio]] = gdf_lots[[column_area, column_ratio]].fillna(0)
+  print(gdf_lots)
+
+  gdf_lots.to_file(args.lots_file, layer='landuse', driver='GPKG')
