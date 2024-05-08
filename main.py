@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
-from chat import chat_response, messages
 from pydantic import BaseModel
 import geopandas as gpd
 import json
@@ -36,13 +35,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.post("/chat")
-async def chat_request(item: Dict[str, str]):
-  response = chat_response(item['message'])
-  print(response)
-  return {"history": messages, **response}
 
 
 @app.get("/project/{project_name}")
