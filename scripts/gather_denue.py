@@ -9,7 +9,7 @@ from io import BytesIO
 import argparse
 import matplotlib.pyplot as plt
 
-from utils.constants import DENUE, CSV_DENUE, WALK_RADIUS
+from utils.constants import DENUE, CSV_DENUE, WALK_RADIUS, REGEX_PPL
 
 
 def map_sector_to_sector(codigo_act: int) -> str:

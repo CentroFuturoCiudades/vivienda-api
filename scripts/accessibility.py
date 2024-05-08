@@ -82,6 +82,7 @@ def get_args():
   parser = argparse.ArgumentParser(description='Join establishments with lots')
   parser.add_argument('lots_file', type=str, help='The file with all the data')
   parser.add_argument('gpkg_file', type=str, help='The file with all the data')
+  parser.add_argument('folder', type=str, help='The folder')
   parser.add_argument('-v', '--view', action='store_true')
   return parser.parse_args()
 
@@ -108,7 +109,7 @@ if __name__ == '__main__':
     current_gdf[item['column']] = current_gdf[item['column']].fillna(False).astype(int)
 
   # TODO: Load pedestrian network from folder of project
-  pedestrian_network = load_network('data/pedestrian_network.hd5', gdf_bounds, WALK_RADIUS)
+  pedestrian_network = load_network(f'{args.folder}/pedestrian_network.hd5', gdf_bounds, WALK_RADIUS)
   pedestrian_network.precompute(WALK_RADIUS)
 
   gdf_aggregate = gpd.GeoDataFrame()
@@ -121,7 +122,7 @@ if __name__ == '__main__':
     gdf_aggregate = pd.concat([gdf_aggregate, gdf], ignore_index=True)
   gdf_aggregate = gdf_aggregate.fillna(0)
   # TODO: Save lots from folder of project
-  gdf_aggregate.to_file('data/lots.gpkg', layer='points_accessibility', driver='GPKG')
+  gdf_aggregate.to_file(f'{args.folder}/lots.gpkg', layer='points_accessibility', driver='GPKG')
 
   df_accessibility = get_all_info(pedestrian_network, gdf_aggregate, PROXIMITY_MAPPING)
   gdf_lots['node_ids'] = pedestrian_network.get_node_ids(gdf_lots.geometry.centroid.x, gdf_lots.geometry.centroid.y)

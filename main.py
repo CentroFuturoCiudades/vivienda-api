@@ -80,10 +80,10 @@ async def custom_query(payload: Dict[Any, Any]):
 
   if metric == 'minutes':
     gdf_bounds = gpd.read_file(f'{FOLDER}/bounds.geojson', crs='EPSG:4326')
-    pedestrian_network = load_network('data/pedestrian_network.hd5', gdf_bounds, WALK_RADIUS)
+    pedestrian_network = load_network(f'{FOLDER}/pedestrian_network.hd5', gdf_bounds, WALK_RADIUS)
     pedestrian_network.precompute(WALK_RADIUS)
     df_lots['node_ids'] = pedestrian_network.get_node_ids(df_lots.longitud, df_lots.latitud)
-    gdf_aggregate = gpd.read_file("data/lots.gpkg", layer='points_accessibility', crs='EPSG:4326')
+    gdf_aggregate = gpd.read_file(f"{FOLDER}/lots.gpkg", layer='points_accessibility', crs='EPSG:4326')
 
     df_accessibility = get_all_info(pedestrian_network, gdf_aggregate, proximity_mapping)
     df_lots = df_lots.merge(df_accessibility, left_on='node_ids', right_index=True, how='left')
