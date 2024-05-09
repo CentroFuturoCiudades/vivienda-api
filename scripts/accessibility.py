@@ -104,9 +104,10 @@ if __name__ == '__main__':
   }
 
   for item in AMENITIES_MAPPING:
+    column = 'proximity_' + item['column']
     current_gdf = gdfs_mapping[item['type']]
-    current_gdf[item['column']] = current_gdf.query(item['query']).any(axis=1)
-    current_gdf[item['column']] = current_gdf[item['column']].fillna(False).astype(int)
+    current_gdf[column] = current_gdf.query(item['query']).any(axis=1)
+    current_gdf[column] = current_gdf[column].fillna(False).astype(int)
 
   # TODO: Load pedestrian network from folder of project
   pedestrian_network = load_network(f'{args.folder}/pedestrian_network.hd5', gdf_bounds, WALK_RADIUS)
@@ -117,7 +118,7 @@ if __name__ == '__main__':
     geometry = gpd.points_from_xy(gdf.geometry.centroid.x, gdf.geometry.centroid.y)
     gdf = gpd.GeoDataFrame(gdf, crs='EPSG:4326', geometry=geometry)
     gdf['node_ids'] = pedestrian_network.get_node_ids(gdf.geometry.x, gdf.geometry.y)
-    columns = [x['column'] for x in AMENITIES_MAPPING if x['column'] in gdf.columns]
+    columns = ['proximity_' + x['column'] for x in AMENITIES_MAPPING if 'proximity_' + x['column'] in gdf.columns]
     gdf = gdf[['node_ids', 'geometry', *columns]]
     gdf_aggregate = pd.concat([gdf_aggregate, gdf], ignore_index=True)
   gdf_aggregate = gdf_aggregate.fillna(0)

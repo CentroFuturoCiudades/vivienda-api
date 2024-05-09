@@ -19,7 +19,7 @@ COLUMN_ID=$3
 # python3 -m scripts.process_lots data/la_primavera/processed.gpkg data/la_primavera/lots.gpkg 25 -v
 # python3 -m scripts.assign_establishments data/la_primavera/lots.gpkg data/la_primavera/processed.gpkg -v
 # python3 -m scripts.landuse data/la_primavera/lots.gpkg data/la_primavera/processed.gpkg -v
-# python3 -m scripts.accessibility data/la_primavera/lots.gpkg data/la_primavera/processed.gpkg -v
+# python3 -m scripts.accessibility data/la_primavera/lots.gpkg data/la_primavera/processed.gpkg data/la_primavera -v
 # python3 -m scripts.utilization -v
 # python3 -m scripts.populate_db data/la_primavera/lots.gpkg data/la_primavera/predios.db final -v
 

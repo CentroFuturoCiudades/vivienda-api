@@ -31,13 +31,13 @@ GDFS_MAPPING = [
 WALK_RADIUS = 1609.34
 WALK_SPEED = 1.2
 AMENITIES_MAPPING = [
-    {'column': 'proximity_small_park', 'type': 'park', 'query': 'park_area > 0.01'},
-    {'column': 'proximity_big_park', 'type': 'park', 'query': 'park_area > 0.5'},
-    {'column': 'proximity_supermercado', 'type': 'establishment', 'query': 'codigo_act.str.match("^462111")'},
-    {'column': 'proximity_salud', 'type': 'establishment', 'query': 'codigo_act.str.match("^6211")'},
-    {'column': 'proximity_educacion', 'type': 'establishment', 'query': 'codigo_act.str.match("^611")'},
-    {'column': 'proximity_servicios', 'type': 'establishment', 'query': 'codigo_act.str.match("^81")'},
-    {'column': 'proximity_age_diversity', 'type': 'home',
+    {'column': 'small_park', 'type': 'park', 'query': 'park_area > 0.01'},
+    {'column': 'big_park', 'type': 'park', 'query': 'park_area > 0.5'},
+    {'column': 'supermercado', 'type': 'establishment', 'query': 'codigo_act.str.match("^462111")'},
+    {'column': 'salud', 'type': 'establishment', 'query': 'codigo_act.str.match("^6211")'},
+    {'column': 'educacion', 'type': 'establishment', 'query': 'codigo_act.str.match("^611")'},
+    {'column': 'servicios', 'type': 'establishment', 'query': 'codigo_act.str.match("^81")'},
+    {'column': 'age_diversity', 'type': 'home',
         'query': '(POBTOT > 0) and (P_15A17 + P_18A24 >= 0.2 * POBTOT) and (P_25A64 >= 0.2 * POBTOT) and (P_65MAS >= 0.2 * POBTOT)'},
 ]
 PROXIMITY_MAPPING = {
