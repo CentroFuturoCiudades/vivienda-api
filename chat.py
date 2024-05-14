@@ -4,6 +4,9 @@ from tenacity import retry, wait_random_exponential, stop_after_attempt
 from termcolor import colored
 from dotenv import load_dotenv
 import os
+import geopandas as gpd
+import pandas as pd
+import yaml
 
 load_dotenv()
 
@@ -98,34 +101,24 @@ Enfoque para Construir Consultas SQL:
 
 Entendimiento del Requerimiento de Análisis: Primero, aclarar el objetivo analítico del usuario, como identificar lotes con potencial de desarrollo o evaluar el impacto de servicios cercanos en los valores de las viviendas.
 
-Elaboración de la Consulta: Utilizar métodos SQL para construir consultas. Para filtrar datos, se usa la estructura SELECT CLAVE_LOTE AS clave, {metric} AS valor FROM predios WHERE {condición};, donde {condición} involucra columnas y operaciones específicas (por ejemplo, POBTOT > 1000 para filtrar por población total mayor a 1000) y {metric} es la métrica específica a seleccionar o calcular, siendo una columna existente o una operación simple sobre columnas existentes.
+Elaboración de la Consulta: Utilizar métodos SQL para construir consultas. Para filtrar datos, se usa la estructura SELECT CLAVE_LOTE AS clave, <metric> AS valor FROM predios WHERE <condición>;, donde <condición> involucra columnas y operaciones específicas (por ejemplo, POBTOT > 1000 para filtrar por población total mayor a 1000) y <metric> es la métrica específica a seleccionar o calcular, siendo una columna existente o una operación simple sobre columnas existentes.
 
 Columnas Detalladas para la Construcción de Consultas:
-| Métrica             | Descripción                                                                   | Estadísticas (media, mínimo, 25%, 50%, 75%, máximo)         |
-|---------------------|-------------------------------------------------------------------------------|-------------------------------------------------------|
-| POBTOT              | Población total en la cercanía del lote. Util para análisis de densidad demográfica y tamaño de mercado potencial.| Media: 129.60, Min: 0.0, 25%: 25%: 56, 50%: 95, 75%: 154, Max: 1986|
-| VIVPAR_DES          | Número de viviendas deshabitadas. Util para identificar potencial de vivienda o áreas para desarrollo.| Media: 3.64, Min: 0, 25%: 0, 50%: 0, 75%: 4, Max: 36|
-| VIVTOT              | Unidades totales de vivienda, incluyendo ocupadas y no ocupadas. Util para entender la disponibilidad total de vivienda.| Media: 53.76, Min: 0, 25%: 23, 50%: 39, 75%: 60, Max: 774|
-| building_ratio      | Proporción del área construida respecto al área total del lote. Util para medir la densidad de desarrollo y el cumplimiento de regulaciones de zonificación.| Media: 0.60, Min: 0, 25%: 0.47, 50%: 0.62, 75%: 0.75, Max: 1|
-| green_ratio         | Proporción del área verde respecto al área total del lote. Util para medir el equilibrio entre desarrollo y espacios verdes.| Media: 0.02, Min: 0, 25%: 0, 50%: 0, 75%: 0, Max: 1|
-| equipment_ratio     | Proporción del área de equipamiento respecto al área total del lote, indicando nivel de desarrollo de infraestructura. Util para medir el desarrollo de infraestructura relativo al tamaño del lote.| Media: 0.00, Min: 0, 25%: 0, 50%: 0, 75%: 0, Max: 1|
-| parking_ratio       | Proporción del área de estacionamiento respecto al área total del lote, indicando la provisión de estacionamiento relativo al tamaño del lote. Util para medir el equilibrio entre la provisión de estacionamiento y otros usos de suelo.| Media: 0.01, Min: 0, 25%: 0, 50%: 0, 75%: 0, Max: 1|
-| unused_ratio        | Proporción del área no utilizada respecto al área total del lote. Util para medir el potencial de desarrollo y la eficiencia del uso del suelo.| Media: 0.38, Min: 0, 25%: 0.24, 50%: 0.36, 75%: 0.50, Max: 1|
-| wasteful_ratio      | Proporción del área desaprovechada respecto al área total del lote. Util para medir el potencial de desarrollo y la eficiencia del uso del suelo.| Media: 0.39, Min: 0, 25%: 0.24, 50%: 0.37, 75%: 0.50, Max: 1|
-| num_workers         | Número de trabajadores empleados cerca del lote, indicador de actividad económica. Util para analizar la vitalidad económica y oportunidades de empleo en la zona.| Media: 2.43, Min: 0, 25%: 0, 50%: 0, 75%: 0, Max: 1096|
-| num_establishments  | Número total de establecimientos comerciales, de salud y educativos cercanos al lote. Util para evaluar la infraestructura comercial y social que rodea el lote.| Media: 0.22, Min: 0, 25%: 0, 50%: 0, 75%: 0, Max: 77|
-| educacion           | Número de servicios educativos a 15 minutos a pie. Util para evaluar infraestructura educativa y la demanda potencial de viviendas orientadas a la familia.| Media: 1.68, Min: 0, 25%: 0, 50%: 1, 75%: 2, Max: 16|
-| salud               | Número de servicios de salud a 15 minutos a pie. Util para analizar la accesibilidad a la atención médica y la infraestructura.| Media: 3.18, Min: 0, 25%: 1, 50%: 3, 75%: 5, Max: 12|
-| comercio            | Número de establecimientos comerciales a 15 minutos a pie. Util para analizar accesibilidad comercial y el potencial para desarrollo minorista.| Media: 17.30, Min: 0, 25%: 7, 50%: 14, 75%: 24, Max: 76|
-| servicios           | Servicios generales como restaurantes a 15 minutos a pie. Util para entender la provisión de servicios generales y comodidades públicas.| Media: 9.58, Min: 0, 25%: 5, 50%: 9, 75%: 13, Max: 29|
-| services_nearby     | Indicador general de servicios dentro de distancia a pie, incluyendo salud, educación, comercio y otros servicios. Util para evaluar la accesibilidad general a servicios esenciales.| Media: 42.16, Min: 0, 25%: 21, 50%: 37, 75%: 58, Max: 146|
-| accessibility_score | Puntuación general que evalúa la accesibilidad del lote basada en todas la diversidad de servicios y establecimientos cercanos. Util para una evaluación completa del lote para planificación estratégica y desarrollo.| Media: 31.75, Min: 0, 25%: 16, 50%: 27, 75%: 44, Max: 106|
-| combined_score      | Puntuación compuesta que evalúa la deseabilidad del lote basada en varios factores. Util para priorizar lotes para inversión, desarrollo o análisis detallado adicional.| Media: 0.24, Min: 0, 25%: 0.13, 50%: 0.20, 75%: 0.31, Max: 1|
+{table_columns}
 """
+
+gdf_lots = gpd.read_file("data/la_primavera/lots.gpkg", layer='final', crs='EPSG:4326')
+columns = [x for x in gdf_lots.columns.to_list() if x not in ['geometry', 'ID', 'latitud', 'longitud']]
+gdf_lots = gdf_lots[columns].describe().transpose()[['mean', 'min', '25%', '50%', '75%', 'max']]
+with open("scripts/column_descriptions.yml", "r") as file:
+  data = yaml.safe_load(file)
+gdf_lots['description'] = gdf_lots.index.map(data)
+PROMPT = PROMPT.format(table_columns=gdf_lots.to_markdown())
+print(PROMPT)
+
 
 messages = []
 messages.append({"role": "system", "content": PROMPT})
-
 
 def chat_response(user_message):
   messages.append({"role": "user", "content": user_message})
@@ -151,30 +144,5 @@ def chat_response(user_message):
   pretty_print_conversation(messages)
   return {"message": assistant_message.content, "payload": None}
 
-
 if __name__ == "__main__":
   chat_response("Could you create a query to identify lots with high utilization but still have significant room for development based on the current population density?")
-
-
-# if __name__ == "__main__":
-#   gdf = gpd.read_file("data/datos.geojson", crs="EPSG:4326")
-#   gdf = gdf[['POBTOT',
-#              'VIVPAR_DES',
-#              'VIVTOT',
-#              'building_ratio',
-#              'green_ratio',
-#              'equipment_ratio',
-#              'parking_ratio',
-#              'unused_ratio',
-#              'wasteful_ratio',
-#              'num_workers',
-#              'num_establishments',
-#              'educacion',
-#              'salud',
-#              'comercio',
-#              'servicios',
-#              'services_nearby',
-#              'accessibility_score',
-#              'combined_score']]
-#   pd.options.display.float_format = "{:,.2f}".format
-#   print(gdf.describe().transpose()[['mean', 'min', '25%', '50%', '75%', 'max']])

@@ -15,6 +15,7 @@ import numpy as np
 import json
 from typing import Dict, Any
 from scripts.accessibility import get_all_info, load_network
+from chat import chat_response, messages
 
 app = FastAPI()
 FOLDER = "data/la_primavera"
@@ -35,6 +36,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.post("/chat")
+async def chat_request(item: Dict[str, str]):
+  response = chat_response(item['message'])
+  print(response)
+  return {"history": messages, **response}
 
 
 @app.get("/project/{project_name}")
