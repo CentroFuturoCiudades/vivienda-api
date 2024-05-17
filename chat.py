@@ -7,10 +7,12 @@ import os
 import geopandas as gpd
 import pandas as pd
 import yaml
+from utils.utils import get_all
+import sqlite3
 
 load_dotenv()
 
-GPT_MODEL = "gpt-4"
+GPT_MODEL = "gpt-4o"
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 tools = [
     {
@@ -107,42 +109,45 @@ Columnas Detalladas para la Construcción de Consultas:
 {table_columns}
 """
 
-gdf_lots = gpd.read_file("data/la_primavera/lots.gpkg", layer='final', crs='EPSG:4326')
-columns = [x for x in gdf_lots.columns.to_list() if x not in ['geometry', 'ID', 'latitud', 'longitud']]
-gdf_lots = gdf_lots[columns].describe().transpose()[['mean', 'min', '25%', '50%', '75%', 'max']]
+conn = sqlite3.connect(f'data/la_primavera/predios.db')
+cursor = conn.cursor()
+data = get_all(cursor, f'''SELECT * FROM predios''')
+df_lots = pd.DataFrame(data)
+columns = [x for x in df_lots.columns.to_list() if x not in ['geometry', 'ID', 'latitud', 'longitud']]
+df_lots = df_lots[columns].describe().transpose()[['mean', 'min', '25%', '50%', '75%', 'max']]
 with open("scripts/column_descriptions.yml", "r") as file:
   data = yaml.safe_load(file)
-gdf_lots['description'] = gdf_lots.index.map(data)
-PROMPT = PROMPT.format(table_columns=gdf_lots.to_markdown())
-print(PROMPT)
-
-
-messages = []
-messages.append({"role": "system", "content": PROMPT})
+df_lots['description'] = df_lots.index.map(data)
+PROMPT = PROMPT.format(table_columns=df_lots.to_markdown())
+MESSAGES = [
+  {"role": "system", "content": PROMPT}
+]
 
 def chat_response(user_message):
-  messages.append({"role": "user", "content": user_message})
+  MESSAGES.append({"role": "user", "content": user_message})
   chat_response = chat_completion_request(
-      messages, tools=tools
+      MESSAGES, tools=tools
   )
+  print(chat_response)
   assistant_message = chat_response.choices[0].message
   # assistant_message.content = str(assistant_message.tool_calls[0].function)
   # messages.append({"role": assistant_message.role, "content": assistant_message.content})
   if assistant_message.tool_calls:
     print('Function call detected')
     results = execute_function_call(assistant_message)
-    messages.append({"role": "function",
+    MESSAGES.append({"role": "function",
                     "tool_call_id": assistant_message.tool_calls[0].id,
                      "name": assistant_message.tool_calls[0].function.name,
                      "content": json.dumps(results)})
     second_response = client.chat.completions.create(
         model=GPT_MODEL,
-        messages=messages,
+        messages=MESSAGES,
     )
-    messages.append({"role": "assistant", "content": second_response.choices[0].message.content})
+    MESSAGES.append({"role": "assistant", "content": second_response.choices[0].message.content})
     return {"message": second_response.choices[0].message.content, "payload": results}
-  pretty_print_conversation(messages)
+  pretty_print_conversation(MESSAGES)
   return {"message": assistant_message.content, "payload": None}
 
 if __name__ == "__main__":
-  chat_response("Could you create a query to identify lots with high utilization but still have significant room for development based on the current population density?")
+  response = chat_response("Could you create a query to identify lots with high utilization but still have significant room for development based on the current population density?")
+  print(response)

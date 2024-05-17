@@ -7,7 +7,7 @@ import json
 import sqlite3
 from typing import Annotated
 import pandas as pd
-from utils.utils import normalize, calculate_walking_distance
+from utils.utils import get_all
 import matplotlib.pyplot as plt
 from osmnx.distance import nearest_nodes
 import osmnx as ox
@@ -15,7 +15,7 @@ import numpy as np
 import json
 from typing import Dict, Any
 from scripts.accessibility import get_all_info, load_network
-from chat import chat_response, messages
+from chat import chat_response, MESSAGES
 
 app = FastAPI()
 FOLDER = "data/la_primavera"
@@ -41,7 +41,7 @@ app.add_middleware(
 async def chat_request(item: Dict[str, str]):
   response = chat_response(item['message'])
   print(response)
-  return {"history": messages, **response}
+  return {"history": MESSAGES, **response}
 
 
 @app.get("/project/{project_name}")
@@ -125,13 +125,13 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
       "minutes": "mean",
       "latitud": "mean",
       "longitud": "mean",
+      "minutes_proximity_big_park": "mean",
+      "minutes_proximity_small_park": "mean",
+      "minutes_proximity_salud": "mean",
+      "minutes_proximity_educacion": "mean",
+      "minutes_proximity_servicios": "mean",
+      "minutes_proximity_supermercado": "mean",
+      "minutes_proximity_age_diversity": "mean",
+
   })
   return df.to_dict()
-
-
-def get_all(cursor, query):
-  print(query)
-  output_obj = cursor.execute(query)
-  results = output_obj.fetchall()
-  data = [{output_obj.description[i][0]: row[i] for i in range(len(row))} for row in results]
-  return data

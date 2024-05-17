@@ -23,6 +23,13 @@ HEX_ID = f'hex_id_{HEX_RESOLUTION}'
 COLUMN_ID = 'ID'
 
 
+def get_all(cursor, query):
+  print(query)
+  output_obj = cursor.execute(query)
+  results = output_obj.fetchall()
+  data = [{output_obj.description[i][0]: row[i] for i in range(len(row))} for row in results]
+  return data
+
 def gdf_to_ee_polygon(gdf: gpd.GeoDataFrame):
   polygon_geojson = gdf.geometry.iloc[0].__geo_interface__
   geom_type = polygon_geojson['type']

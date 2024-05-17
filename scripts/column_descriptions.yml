@@ -1,0 +1,63 @@
+ID: El ID del lote
+CVEGEO: Clave de la manzana del lote
+block_area: Área en hectareas de la manzana
+POBTOT: Población total de la manzana
+POBMAS: Población masculina de la manzana
+POBFEM: Población femenina de la manzana
+P_0A5: Población de 0 a 5 años de la manzana
+P_6A14: Población de 6 a 14 años de la manzana
+P_15A17: Población de 15 a 17 años de la manzana
+P_18A24: Población de 18 a 24 años de la manzana
+P_25A64: Población de 25 a 64 años de la manzana
+P_65MAS: Población de 65 años y más de la manzana
+PEA: Población económicamente activa de la manzana
+PE_INAC: Población económicamente inactiva de la manzana
+POCUPADA: Población con trabajo de la manzana 
+PDESOCUP: Población sin trabajo buscando empleo de la manzana
+VIVTOT: Viviendas totales de la manzana
+TVIVHAB: Viviendas habitadas de la manzana
+TVIVPAR: Viviendas particulares de la manzana
+VIVPAR_HAB: Viviendas particulares habitadas de la manzana
+VIVPAR_DES: Viviendas particulares deshabitadas de la manzana
+VPH_AUTOM: Viviendas particulares habitadas que disponen de automóvil de la manzana
+OCUPVIVPAR: Ocupantes por vivienda particular de la manzana
+PROM_OCUP: Promedio de ocupantes por vivienda
+PRO_OCUP_C: Promedio de ocupantes por cuarto
+num_establishments: Número de establecimientos en el lote
+num_workers: Número de trabajadores en el lote
+supermercado: Número de supermercados en el lote
+salud: Número de servicios de salud en el lote
+educacion: Número de servicios de educación en el lote
+servicios: Número de servicios en el lote
+lot_area: Área en hectareas del lote
+unused_area: Área en hectareas sin uso del lote (incluye casas con áreas sin techo)
+unused_ratio: Porcentaje de área sin uso del lote
+green_area: Área en hectareas verde del lote
+green_ratio: Porcentaje de área verde del lote (media o alta vegetación)
+parking_area: Área en hectareas de estacionamiento del lote
+parking_ratio: Porcentaje de área de estacionamiento del lote
+park_area: Área en hectareas de parque del lote
+park_ratio: Porcentaje de área de parque del lote
+equipment_area: Área en hectareas de equipamiento del lote
+equipment_ratio: Porcentaje de área de equipamiento del lote
+building_area: Área en hectareas de footprints del lote
+building_ratio: Porcentaje de área de footprints del lote
+proximity_age_diversity: Diversidad de edades en la manzana
+accessibility: Accesibilidad del lote (num establecimientos de salud, educación y servicios a 15 min)
+minutes_proximity_big_park: Minutos a pie al primer parque grande (> 0.5 ha) más cercano
+minutes_proximity_small_park: Minutos a pie al segundo parque más cercano
+minutes_proximity_salud: Minutos a pie al segundo servicio de salud más cercano
+minutes_proximity_educacion: Minutos a pie al primer servicio de educación más cercano
+minutes_proximity_servicios: Minutos a pie al quinto servicio más cercano
+minutes_proximity_supermercado: Minutos a pie al primer supermercado más cercano
+minutes_proximity_age_diversity: Minutos a pie al primer "barrio" con diversidad de edades
+minutes: Minutos a pie a lo más lejano de todo lo anterior
+num_properties: Número de propiedades en el lote (establecimientos y viviendas)
+wasteful_area: Área en hectareas área siendo desperdiciada (área de estacionamiento, área sin uso, área verde) del lote
+wasteful_ratio: Porcentaje de área siendo desperdiciada del lote
+occupancy: Numero de ocupantes de trabajadores y residentes en el lote (residentes está por manzana por ahora)
+underutilized_area: Área en hectareas subutilizada por cada ocupante del lote
+underutilized_ratio: Porcentaje de área subutilizada por cada ocupante del lote
+occupancy_density: Número de ocupantes por cada hectarea en el lote
+property_density: Número de viviendas y establecimientos por cada hectarea en el lote
+combined_score: Combinación de métrica de proximidad (minutos) y su subutilización. Alta proximidad y alta subutilización da una puntuación alta.
