@@ -41,7 +41,8 @@ def get_denue(gdf_bounds: GeoDataFrame, state_code: str) -> GeoDataFrame:
 
 def get_args():
   parser = argparse.ArgumentParser(description='Join establishments with lots')
-  parser.add_argument('gpkg_file', type=str, help='The file with all the data')
+  parser.add_argument('bounds_file', type=str, help='The file with all the data')
+  parser.add_argument('output_file', type=str, help='The file with all the data')
   parser.add_argument('state_code', type=int, help='The state code')
   parser.add_argument('-v', '--view', action='store_true')
   return parser.parse_args()
@@ -49,9 +50,9 @@ def get_args():
 
 if __name__ == '__main__':
   args = get_args()
-  gdf_bounds = gpd.read_file(args.gpkg_file, layer='bounds', crs='EPSG:4326')
+  gdf_bounds = gpd.read_file(args.bounds_file, crs='EPSG:4326')
   gdf_denue = get_denue(gdf_bounds, args.state_code)
-  gdf_denue.to_file(args.gpkg_file, layer='establishments', driver='GPKG')
+  gdf_denue.to_file(args.output_file)
   if args.view:
     gdf_denue.plot(column='sector', legend=True, markersize=1)
     plt.show()

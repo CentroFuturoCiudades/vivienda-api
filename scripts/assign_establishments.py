@@ -54,8 +54,9 @@ def assign_by_proximity(gdf_block_lots: gpd.GeoDataFrame, gdf_denue: gpd.GeoData
 
 def get_args():
   parser = argparse.ArgumentParser(description='Join establishments with lots')
-  parser.add_argument('lots_file', type=str, help='The file with all the data')
-  parser.add_argument('gpkg_file', type=str, help='The file with all the data')
+  parser.add_argument('population_file', type=str, help='The file with all the data')
+  parser.add_argument('establishments_file', type=str, help='The file with all the data')
+  parser.add_argument('output_file', type=str, help='The file with all the data')
   parser.add_argument('-v', '--view', action='store_true')
   return parser.parse_args()
 
@@ -64,11 +65,11 @@ if __name__ == '__main__':
   args = get_args()
 
   # Load the polygons for the lots
-  gdf_lots = gpd.read_file(args.lots_file, layer='population').to_crs('EPSG:4326')
+  gdf_lots = gpd.read_file(args.population_file).to_crs('EPSG:4326')
   gdf_lots['area'] = gdf_lots.to_crs('EPSG:6933').area / 10_000
 
   # Load the coordinates for the establishments
-  gdf_denue = gpd.read_file(args.gpkg_file, layer='establishments', crs='EPSG:4326')
+  gdf_denue = gpd.read_file(args.establishments_file, crs='EPSG:4326')
   gdf_denue = gdf_denue.rename(columns={'id': 'DENUE_ID'})
   # Get which sector each establishment belongs to
   gdf_denue['codigo_act'] = gdf_denue['codigo_act'].astype(str)
@@ -80,8 +81,8 @@ if __name__ == '__main__':
   # gdf_denue['year'] = gdf_denue['date'].dt.year
 
   gdf_lots = assign_by_proximity(gdf_lots, gdf_denue)
-  gdf_lots.to_file(args.lots_file, layer='establishments', driver='GPKG')
+  gdf_lots.to_file(args.output_file)
 
   if args.view:
-    gdf_lots.plot(column='supermercado', legend=True)
+    gdf_lots.plot(column='supermercado', legend=True, alpha=0.5)
     plt.show()
