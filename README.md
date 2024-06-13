@@ -53,3 +53,19 @@ Nota: Esto generará varios archivos en un nuevo folder que contiene la informac
 $ python3 populate_db.py <archivo_predio>
 ```
 Nota: archivo_predio es el archivo `predios.csv` que se generó en el paso anterior. Esto creará una base de datos en `data/predios.db` con la información de los predios.
+
+# Ejecutar API
+1. Instalar poetry si no se tiene ya agregado al sistema: 
+```sh
+$ pipx install poetry
+```
+
+2. Instalar las dependencias corriendo el comando:
+```sh
+$ poetry install
+```
+
+3. Inicializar el server con uvicorn ejecutando:
+```sh
+$ poetry run uvicorn main:app --reload   
+```
