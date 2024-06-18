@@ -160,5 +160,9 @@ cython_debug/
 #.idea/
 
 data/
+primavera/
 Pipfile
 cache
+temp    
+temp_data
+.DS_Store
