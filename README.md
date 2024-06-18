@@ -54,6 +54,13 @@ $ python3 populate_db.py <archivo_predio>
 ```
 Nota: archivo_predio es el archivo `predios.csv` que se generó en el paso anterior. Esto creará una base de datos en `data/predios.db` con la información de los predios.
 
+# IMPORTANT: Dependencies befor running the next section
+- HDF5
+Run the following command using homebrew
+```sh
+$ brew install hdf5
+```
+
 # Ejecutar API
 1. Instalar poetry si no se tiene ya agregado al sistema: 
 ```sh
