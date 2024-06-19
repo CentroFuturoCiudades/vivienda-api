@@ -1,8 +1,6 @@
 import argparse
 import os
-import sqlite3
 
-import geopandas as gpd
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
@@ -10,12 +8,6 @@ from pyogrio import read_dataframe
 from sqlalchemy import create_engine
 
 load_dotenv()
-
-TYPE_MAPPING = {
-    "int64": "INTEGER",
-    "float64": "REAL",
-    "object": "TEXT",
-}
 
 
 def get_args():
