@@ -1,11 +1,8 @@
 import argparse
 import os
-import pickle
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
-import networkx as nx
-import numpy as np
 import osmnx as ox
 import pandana as pdna
 import pandas as pd
@@ -18,7 +15,6 @@ from utils.constants import (
     WALK_RADIUS,
     WALK_SPEED,
 )
-from utils.utils import normalize
 
 
 def get_proximity(network, categories_mapping, distance, walk_speed):

@@ -13,7 +13,6 @@ from utils.constants import (
     PARK_TAGS,
     PARKING_FILTER,
     PARKING_TAGS,
-    WALK_RADIUS,
 )
 
 
