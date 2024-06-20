@@ -2,6 +2,7 @@ import io
 import json
 import sqlite3
 import tempfile
+import pyogrio
 from typing import Annotated, Any, Dict
 
 import geopandas as gpd
@@ -16,13 +17,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from osmnx.distance import nearest_nodes
 from pydantic import BaseModel
+from shapely.geometry import box
+from utils.files import get_file
 
 from chat import MESSAGES, chat_response
 from scripts.accessibility import get_all_info, load_network
 from utils.utils import get_all
 
 app = FastAPI()
-FOLDER = "la_primavera"
+FOLDER = "primavera"
 PROJECTS_MAPPING = {"distritotec": "distritotec", "primavera": "primavera"}
 WALK_RADIUS = 1609.34
 
@@ -32,6 +35,53 @@ BLOB_URL = "https://reimaginaurbanostorage.blob.core.windows.net"
 
 def get_blob_url(endpoint: str) -> str:
     return f"{BLOB_URL}/{FOLDER}/{endpoint}"
+
+
+def calculate_metrics( metric: str, condition: str, proximity_mapping: Dict[Any, Any]):
+    conn = sqlite3.connect(f"data/{FOLDER}/final/predios.db")
+    cursor = conn.cursor()
+    if condition:
+        data = get_all(
+            cursor,
+            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM predios WHERE {condition}""",
+        )
+    else:
+        data = get_all(
+            cursor,
+            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM predios""",
+        )
+    df_lots = pd.DataFrame(data)
+    df_lots["ID"] = df_lots["ID"].astype(int).astype(str)
+    df_lots["value"] = df_lots["value"].fillna(0)
+    df_lots = df_lots.fillna(0)
+
+    if metric == "minutes":
+        response = requests.get(get_blob_url("pedestrian_network.hd5"))
+        response.raise_for_status()
+        with tempfile.NamedTemporaryFile(delete=True) as tmp_file:
+            # Write the content to the temporary file
+            tmp_file.write(response.content)
+            tmp_file.flush()
+            pedestrian_network = pdna.Network.from_hdf5(tmp_file.name)
+            pedestrian_network.precompute(WALK_RADIUS)
+        df_lots["node_ids"] = pedestrian_network.get_node_ids(
+            df_lots.longitud, df_lots.latitud
+        )
+        
+        gdf_aggregate = gpd.read_file(
+            get_blob_url("accessibility_points.fgb"),
+            crs="EPSG:4326",
+        )
+
+        df_accessibility = get_all_info(
+            pedestrian_network, gdf_aggregate, proximity_mapping
+        )
+        df_lots = df_lots.merge(
+            df_accessibility, left_on="node_ids", right_index=True, how="left"
+        )
+        df_lots = df_lots[["ID", "minutes"]].rename(columns={"minutes": "value"})
+    return df_lots.to_dict(orient="records")
+
 
 
 # add rout for new chat request
@@ -58,7 +108,7 @@ async def chat_request(item: Dict[str, str]):
 async def change_project(project_name: str):
     global FOLDER
     FOLDER = PROJECTS_MAPPING.get(project_name)
-
+    return { "success": True }
 
 @app.get("/coords")
 async def get_coordinates():
@@ -182,3 +232,62 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
         }
     )
     return df.to_dict()
+
+LOTS: any
+
+@app.get("/lens")
+async def testing():
+    
+    file = get_file("https://reimaginaurbanostorage.blob.core.windows.net/primavera/lots.fgb")
+  
+    gdf = pyogrio.read_dataframe( file, columns=["geometry","ID"])
+
+    LOTS = gdf
+
+    print( LOTS )
+
+    return { "success" : True }
+    
+
+@app.post("/lens")
+async def lens_layer(payload: Dict[ str, Any ]):
+    lat = 24.755954807243278 #payload["latitude"]
+    lon =  -107.4024526417783 #payload["longitude"]
+    radius: float = 1 #payload["radius"]
+
+    centroid = gpd.GeoDataFrame( geometry=gpd.points_from_xy([lon],[lat]), crs="EPSG:4326")
+    areaFrame = centroid.to_crs("EPSG:32613").buffer(radius * 1000).to_crs("EPSG:4326")
+
+    bounding_box = box(*areaFrame.total_bounds)
+
+    file = get_file("https://reimaginaurbanostorage.blob.core.windows.net/primavera/lots.fgb")
+
+    #gdf = pyogrio.read_dataframe( file, columns=["geometry", "ID"], bbox=bounding_box.bounds )
+    select = pyogrio.read_dataframe( file, sql=
+              """ 
+                SELECT geometry
+                FROM features
+              """,
+              sql_dialect="OGRSQL"
+              )
+
+    gdf = gdf[ gdf.within( areaFrame.unary_union ) ]
+
+    print( gdf )
+
+    return # gdf.to_json()
+
+@app.get("/generate-metrics")
+async def generateMetrics():
+    data = calculate_metrics(
+        "minutes",
+        "",
+        {
+            "proximity_educacion": 1,
+            "proximity_salud": 2,
+            "proximity_servicios": 5,
+            "proximity_small_park": 2,
+            "proximity_supermercado": 1
+        }
+    )
+    return data
