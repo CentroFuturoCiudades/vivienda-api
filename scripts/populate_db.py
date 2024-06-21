@@ -138,3 +138,10 @@ if __name__ == "__main__":
         index_label="ID",
         chunksize=5000,
     )
+    df.to_sql(
+        "lots",
+        f"sqlite:///data/lots.db",
+        if_exists="replace",
+        index=False,
+        index_label="ID",
+    )

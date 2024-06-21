@@ -2,7 +2,6 @@ import json
 import os
 import sqlite3
 
-import geopandas as gpd
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
@@ -10,11 +9,11 @@ from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 from termcolor import colored
 
-from utils.utils import get_all
+from utils.utils import get_all, load_file
 
 load_dotenv()
 
-GPT_MODEL = "gpt-4"
+GPT_MODEL = "gpt-4o"
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 tools = [
     {
@@ -134,23 +133,29 @@ Columnas Detalladas para la Construcción de Consultas:
 {table_columns}
 """
 
-conn = sqlite3.connect(f"data/distritotec/final/predios.db")
-cursor = conn.cursor()
-data = get_all(cursor, f"""SELECT * FROM predios""")
-df_lots = pd.DataFrame(data)
-columns = [
-    x
-    for x in df_lots.columns.to_list()
-    if x not in ["geometry", "ID", "latitud", "longitud"]
-]
-df_lots = (
-    df_lots[columns].describe().transpose()[["mean", "min", "25%", "50%", "75%", "max"]]
-)
-with open("scripts/column_descriptions.yml", "r") as file:
-    data = yaml.safe_load(file)
-df_lots["description"] = df_lots.index.map(data)
-PROMPT = PROMPT.format(table_columns=df_lots.to_markdown())
-MESSAGES = [{"role": "system", "content": PROMPT}]
+
+def load_messages(folder: str):
+    global PROMPT, MESSAGES
+    df_lots = get_all(f"""SELECT * FROM lots""")
+    columns = [
+        x
+        for x in df_lots.columns.to_list()
+        if x not in ["geometry", "ID", "latitud", "longitud"]
+    ]
+    df_lots = (
+        df_lots[columns]
+        .describe()
+        .transpose()[["mean", "min", "25%", "50%", "75%", "max"]]
+    )
+    with open("scripts/column_descriptions.yml", "r") as file:
+        data = yaml.safe_load(file)
+    df_lots["description"] = df_lots.index.map(data)
+    PROMPT = PROMPT.format(table_columns=df_lots.to_markdown())
+    MESSAGES = [{"role": "system", "content": PROMPT}]
+    return PROMPT, MESSAGES
+
+
+PROMPT, MESSAGES = load_messages("primavera")
 
 
 def chat_response(user_message):

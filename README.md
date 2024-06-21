@@ -74,5 +74,8 @@ $ poetry install
 
 3. Inicializar el server con uvicorn ejecutando:
 ```sh
-$ poetry run uvicorn main:app --reload   
+# Para utilizar los datos local
+$ APP_ENV=local && poetry run uvicorn main:app --reload
+# Para utilizar la base de datos en la nube
+$ APP_ENV=dev && poetry run uvicorn main:app --reload
 ```

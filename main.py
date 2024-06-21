@@ -2,7 +2,6 @@ import io
 import json
 import sqlite3
 import tempfile
-import pyogrio
 from typing import Annotated, Any, Dict
 
 import geopandas as gpd
@@ -11,6 +10,7 @@ import numpy as np
 import osmnx as ox
 import pandana as pdna
 import pandas as pd
+import pyogrio
 import requests
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,10 +18,10 @@ from fastapi.responses import FileResponse, Response
 from osmnx.distance import nearest_nodes
 from pydantic import BaseModel
 from shapely.geometry import box
-from utils.files import get_file
 
 from chat import MESSAGES, chat_response
 from scripts.accessibility import get_all_info, load_network
+from utils.files import get_file
 from utils.utils import get_all
 
 app = FastAPI()
@@ -37,20 +37,15 @@ def get_blob_url(endpoint: str) -> str:
     return f"{BLOB_URL}/{FOLDER}/{endpoint}"
 
 
-def calculate_metrics( metric: str, condition: str, proximity_mapping: Dict[Any, Any]):
-    conn = sqlite3.connect(f"data/{FOLDER}/final/predios.db")
-    cursor = conn.cursor()
+def calculate_metrics(metric: str, condition: str, proximity_mapping: Dict[Any, Any]):
     if condition:
-        data = get_all(
-            cursor,
-            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM predios WHERE {condition}""",
+        df_lots = get_all(
+            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {condition}""",
         )
     else:
-        data = get_all(
-            cursor,
-            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM predios""",
+        df_lots = get_all(
+            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots""",
         )
-    df_lots = pd.DataFrame(data)
     df_lots["ID"] = df_lots["ID"].astype(int).astype(str)
     df_lots["value"] = df_lots["value"].fillna(0)
     df_lots = df_lots.fillna(0)
@@ -67,7 +62,7 @@ def calculate_metrics( metric: str, condition: str, proximity_mapping: Dict[Any,
         df_lots["node_ids"] = pedestrian_network.get_node_ids(
             df_lots.longitud, df_lots.latitud
         )
-        
+
         gdf_aggregate = gpd.read_file(
             get_blob_url("accessibility_points.fgb"),
             crs="EPSG:4326",
@@ -83,8 +78,6 @@ def calculate_metrics( metric: str, condition: str, proximity_mapping: Dict[Any,
     return df_lots.to_dict(orient="records")
 
 
-
-# add rout for new chat request
 ORIGINS = [
     "*",
 ]
@@ -108,7 +101,8 @@ async def chat_request(item: Dict[str, str]):
 async def change_project(project_name: str):
     global FOLDER
     FOLDER = PROJECTS_MAPPING.get(project_name)
-    return { "success": True }
+    return {"success": True}
+
 
 @app.get("/coords")
 async def get_coordinates():
@@ -133,19 +127,14 @@ async def custom_query(payload: Dict[Any, Any]):
     metric = payload.get("metric")
     condition = payload.get("condition")
     proximity_mapping = payload.get("accessibility_info")
-    conn = sqlite3.connect(f"data/{FOLDER}/final/predios.db")
-    cursor = conn.cursor()
     if condition:
-        data = get_all(
-            cursor,
-            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM predios WHERE {condition}""",
+        df_lots = get_all(
+            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {condition}""",
         )
     else:
-        data = get_all(
-            cursor,
-            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM predios""",
+        df_lots = get_all(
+            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots""",
         )
-    df_lots = pd.DataFrame(data)
     df_lots["ID"] = df_lots["ID"].astype(int).astype(str)
     df_lots["value"] = df_lots["value"].fillna(0)
     df_lots = df_lots.fillna(0)
@@ -186,12 +175,7 @@ async def custom_query(payload: Dict[Any, Any]):
 
 @app.get("/predios/")
 async def get_info(predio: Annotated[list[str] | None, Query()] = None):
-    conn = sqlite3.connect(f"data/{FOLDER}/final/predios.db")
-    cursor = conn.cursor()
-    data = get_all(
-        cursor, f"""SELECT * FROM predios WHERE ID IN ({', '.join(predio)})"""
-    )
-    df = pd.DataFrame(data)
+    df = get_all(f"""SELECT * FROM lots WHERE ID IN ({', '.join(predio)})""")
     df = df.drop(columns=["ID", "num_properties"]).agg(
         {
             "building_ratio": "mean",
@@ -213,7 +197,7 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
             "num_establishments": "sum",
             "num_workers": "sum",
             "POBTOT": "mean",
-            "VIVTOT": "mean",
+            "VIVTOT": "sum",
             "VIVPAR_DES": "mean",
             "servicios": "mean",
             "salud": "mean",
@@ -229,53 +213,65 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
             "minutes_proximity_servicios": "mean",
             "minutes_proximity_supermercado": "mean",
             "minutes_proximity_age_diversity": "mean",
+            "VPH_AUTOM": "sum",
         }
     )
+    df["car_ratio"] = df["VPH_AUTOM"] / df["VIVTOT"]
     return df.to_dict()
+
 
 LOTS: any
 
+
 @app.get("/lens")
 async def testing():
-    
-    file = get_file("https://reimaginaurbanostorage.blob.core.windows.net/primavera/lots.fgb")
-  
-    gdf = pyogrio.read_dataframe( file, columns=["geometry","ID"])
+
+    file = get_file(
+        "https://reimaginaurbanostorage.blob.core.windows.net/primavera/lots.fgb"
+    )
+
+    gdf = pyogrio.read_dataframe(file, columns=["geometry", "ID"])
 
     LOTS = gdf
 
-    print( LOTS )
+    print(LOTS)
 
-    return { "success" : True }
-    
+    return {"success": True}
+
 
 @app.post("/lens")
-async def lens_layer(payload: Dict[ str, Any ]):
-    lat = 24.755954807243278 #payload["latitude"]
-    lon =  -107.4024526417783 #payload["longitude"]
-    radius: float = 1 #payload["radius"]
+async def lens_layer(payload: Dict[str, Any]):
+    lat = 24.755954807243278  # payload["latitude"]
+    lon = -107.4024526417783  # payload["longitude"]
+    radius: float = 1  # payload["radius"]
 
-    centroid = gpd.GeoDataFrame( geometry=gpd.points_from_xy([lon],[lat]), crs="EPSG:4326")
+    centroid = gpd.GeoDataFrame(
+        geometry=gpd.points_from_xy([lon], [lat]), crs="EPSG:4326"
+    )
     areaFrame = centroid.to_crs("EPSG:32613").buffer(radius * 1000).to_crs("EPSG:4326")
 
     bounding_box = box(*areaFrame.total_bounds)
 
-    file = get_file("https://reimaginaurbanostorage.blob.core.windows.net/primavera/lots.fgb")
+    file = get_file(
+        "https://reimaginaurbanostorage.blob.core.windows.net/primavera/lots.fgb"
+    )
 
-    #gdf = pyogrio.read_dataframe( file, columns=["geometry", "ID"], bbox=bounding_box.bounds )
-    select = pyogrio.read_dataframe( file, sql=
-              """ 
+    # gdf = pyogrio.read_dataframe( file, columns=["geometry", "ID"], bbox=bounding_box.bounds )
+    select = pyogrio.read_dataframe(
+        file,
+        sql=""" 
                 SELECT geometry
                 FROM features
               """,
-              sql_dialect="OGRSQL"
-              )
+        sql_dialect="OGRSQL",
+    )
 
-    gdf = gdf[ gdf.within( areaFrame.unary_union ) ]
+    gdf = gdf[gdf.within(areaFrame.unary_union)]
 
-    print( gdf )
+    print(gdf)
 
-    return # gdf.to_json()
+    return  # gdf.to_json()
+
 
 @app.get("/generate-metrics")
 async def generateMetrics():
@@ -287,7 +283,7 @@ async def generateMetrics():
             "proximity_salud": 2,
             "proximity_servicios": 5,
             "proximity_small_park": 2,
-            "proximity_supermercado": 1
-        }
+            "proximity_supermercado": 1,
+        },
     )
     return data
