@@ -1,4 +1,5 @@
 import io
+import os
 import json
 import sqlite3
 import tempfile
@@ -12,12 +13,15 @@ import pandana as pdna
 import pandas as pd
 import pyogrio
 import requests
+
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from osmnx.distance import nearest_nodes
 from pydantic import BaseModel
 from shapely.geometry import box
+
+from sqlalchemy import create_engine
 
 from chat import MESSAGES, chat_response
 from scripts.accessibility import get_all_info, load_network
@@ -225,12 +229,10 @@ LOTS: any
 
 @app.get("/lens")
 async def testing():
-
-    file = get_file(
-        "https://reimaginaurbanostorage.blob.core.windows.net/primavera/lots.fgb"
-    )
-
-    gdf = pyogrio.read_dataframe(file, columns=["geometry", "ID"])
+    
+    file = get_file(f"{BLOB_URL}/{FOLDER}/landuse_equipment.fgb")
+  
+    gdf = pyogrio.read_dataframe( file, columns=["geometry","ID"])
 
     LOTS = gdf
 
@@ -240,37 +242,33 @@ async def testing():
 
 
 @app.post("/lens")
-async def lens_layer(payload: Dict[str, Any]):
-    lat = 24.755954807243278  # payload["latitude"]
-    lon = -107.4024526417783  # payload["longitude"]
-    radius: float = 1  # payload["radius"]
+async def lens_layer(payload: Dict[ str, Any ]):
+    lat = 24.755954807243278 #payload["latitude"]
+    lon =  -107.4024526417783 #payload["longitude"]
+    radius: float = 1 #payload["radius"]
+    metrics = payload["metrics"]
 
-    centroid = gpd.GeoDataFrame(
-        geometry=gpd.points_from_xy([lon], [lat]), crs="EPSG:4326"
-    )
+    centroid = gpd.GeoDataFrame( geometry=gpd.points_from_xy([lon],[lat]), crs="EPSG:4326")
     areaFrame = centroid.to_crs("EPSG:32613").buffer(radius * 1000).to_crs("EPSG:4326")
 
     bounding_box = box(*areaFrame.total_bounds)
 
-    file = get_file(
-        "https://reimaginaurbanostorage.blob.core.windows.net/primavera/lots.fgb"
-    )
+    response = {}
 
-    # gdf = pyogrio.read_dataframe( file, columns=["geometry", "ID"], bbox=bounding_box.bounds )
-    select = pyogrio.read_dataframe(
-        file,
-        sql=""" 
-                SELECT geometry
-                FROM features
-              """,
-        sql_dialect="OGRSQL",
-    )
+    for metric in metrics:
+        file = get_file( f"{BLOB_URL}/{FOLDER}/{metric}.fgb" )
+        gdf = pyogrio.read_dataframe( file, bbox= bounding_box.bounds )
+        gdf = gdf[ gdf.within( areaFrame.unary_union ) ]
 
-    gdf = gdf[gdf.within(areaFrame.unary_union)]
+        response[metric] = gdf.to_json()
 
-    print(gdf)
+    lofsFile = get_file( f"{BLOB_URL}/{FOLDER}/lots.fgb" )
+    gdf = pyogrio.read_dataframe( lofsFile, bbox= bounding_box.bounds )
+    gdf = gdf[ gdf.within( areaFrame.unary_union ) ]
 
-    return  # gdf.to_json()
+    response["lots"] = gdf.to_json()
+
+    return response
 
 
 @app.get("/generate-metrics")
@@ -287,3 +285,21 @@ async def generateMetrics():
         },
     )
     return data
+@app.get("/test")
+async def dbTest():
+    query = "SELECT TOP 1 * FROM lots"
+
+    server = os.getenv("SQL_SERVER")
+    database = os.getenv("SQL_DATABASE")
+    username = os.getenv("SQL_USERNAME")
+    password = os.getenv("SQL_PASSWORD")
+    driver = os.getenv("SQL_DRIVER")
+
+    connection_string = f"DRIVER={driver};SERVER=tcp:{server},1433;DATABASE={database};UID={username};PWD={password};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+    engine = create_engine(f"mssql+pyodbc:///?odbc_connect={connection_string}")
+
+    df = pd.read_sql(query, engine)
+
+    print(df)
+
+    return "success"

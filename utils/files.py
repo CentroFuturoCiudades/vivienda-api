@@ -4,7 +4,7 @@ import time
 import json
 from urllib.parse import urlparse
 
-TTL = 3600  # seconds
+TTL = 3600 * 24  # seconds
 BASE_LOCATION = "./temp"
 TIMESTAMP_FILE = f"{BASE_LOCATION}/file_timestamps.json"
 

@@ -61,6 +61,21 @@ Run the following command using homebrew
 $ brew install hdf5
 ```
 
+- UNIXOBDC
+Run the following command using homebrew
+```sh
+$ brew install unixodbc
+```
+
+- Install microsoft OBDC 18 Drivers
+```sh
+$ /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+$ brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release
+$ brew update
+$ HOMEBREW_ACCEPT_EULA=Y brew install msodbcsql18 mssql-tools18
+$ odbcinst -u -d -n "ODBC Driver 18 for SQL Server"
+```
+
 # Ejecutar API
 1. Instalar poetry si no se tiene ya agregado al sistema: 
 ```sh
