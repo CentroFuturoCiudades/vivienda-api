@@ -1,9 +1,9 @@
 import io
-import os
 import json
+import os
 import sqlite3
 import tempfile
-from typing import Annotated, Any, Dict
+from typing import Annotated, Any, Dict, List
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -13,14 +13,12 @@ import pandana as pdna
 import pandas as pd
 import pyogrio
 import requests
-
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from osmnx.distance import nearest_nodes
 from pydantic import BaseModel
 from shapely.geometry import box
-
 from sqlalchemy import create_engine
 
 from chat import MESSAGES, chat_response
@@ -224,51 +222,44 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
     return df.to_dict()
 
 
-LOTS: any
-
-
 @app.get("/lens")
-async def testing():
-    
-    file = get_file(f"{BLOB_URL}/{FOLDER}/landuse_equipment.fgb")
-  
-    gdf = pyogrio.read_dataframe( file, columns=["geometry","ID"])
-
-    LOTS = gdf
-
-    print(LOTS)
-
-    return {"success": True}
-
-
-@app.post("/lens")
-async def lens_layer(payload: Dict[ str, Any ]):
-    lat = 24.755954807243278 #payload["latitude"]
-    lon =  -107.4024526417783 #payload["longitude"]
-    radius: float = 1 #payload["radius"]
-    metrics = payload["metrics"]
-
-    centroid = gpd.GeoDataFrame( geometry=gpd.points_from_xy([lon],[lat]), crs="EPSG:4326")
-    areaFrame = centroid.to_crs("EPSG:32613").buffer(radius * 1000).to_crs("EPSG:4326")
+async def lens_layer(
+    lat: float,
+    lon: float,
+    radius: float,
+    metrics: List[str] = Query(None),
+):
+    centroid = gpd.GeoDataFrame(
+        geometry=gpd.points_from_xy([lon], [lat]), crs="EPSG:4326"
+    )
+    areaFrame = centroid.to_crs("EPSG:32613").buffer(radius).to_crs("EPSG:4326")
 
     bounding_box = box(*areaFrame.total_bounds)
 
-    response = {}
+    united_gdf = gpd.GeoDataFrame()
 
     for metric in metrics:
-        file = get_file( f"{BLOB_URL}/{FOLDER}/{metric}.fgb" )
-        gdf = pyogrio.read_dataframe( file, bbox= bounding_box.bounds )
-        gdf = gdf[ gdf.within( areaFrame.unary_union ) ]
+        file = get_file(f"{BLOB_URL}/{FOLDER}/{metric}.fgb")
+        gdf = pyogrio.read_dataframe(file, bbox=bounding_box.bounds)
+        gdf = gdf[gdf.within(areaFrame.unary_union)]
+        gdf["metric"] = metric
+        united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
 
-        response[metric] = gdf.to_json()
+    lofsFile = get_file(f"{BLOB_URL}/{FOLDER}/lots.fgb")
+    gdf = pyogrio.read_dataframe(lofsFile, bbox=bounding_box.bounds)
+    gdf = gdf[gdf.within(areaFrame.unary_union)]
+    gdf["metric"] = "lots"
+    united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
 
-    lofsFile = get_file( f"{BLOB_URL}/{FOLDER}/lots.fgb" )
-    gdf = pyogrio.read_dataframe( lofsFile, bbox= bounding_box.bounds )
-    gdf = gdf[ gdf.within( areaFrame.unary_union ) ]
+    buffer = io.BytesIO()
+    united_gdf.to_file(buffer, driver="FlatGeobuf")
+    buffer.seek(0)  # Rewind the buffer to the beginning
 
-    response["lots"] = gdf.to_json()
-
-    return response
+    return Response(
+        content=buffer.read(),
+        media_type="application/octet-stream",
+        # headers={"Content-Disposition": "attachment; filename=lots.fgb"},
+    )
 
 
 @app.get("/generate-metrics")
@@ -285,6 +276,8 @@ async def generateMetrics():
         },
     )
     return data
+
+
 @app.get("/test")
 async def dbTest():
     query = "SELECT TOP 1 * FROM lots"
