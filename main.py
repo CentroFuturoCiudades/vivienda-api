@@ -25,6 +25,7 @@ from chat import MESSAGES, chat_response
 from scripts.accessibility import get_all_info, load_network
 from utils.files import get_file
 from utils.utils import get_all
+import time
 
 app = FastAPI()
 FOLDER = "primavera"
@@ -178,6 +179,18 @@ async def custom_query(payload: Dict[Any, Any]):
 @app.get("/predios/")
 async def get_info(predio: Annotated[list[str] | None, Query()] = None):
     df = get_all(f"""SELECT * FROM lots WHERE ID IN ({', '.join(predio)})""")
+    inegi_data = df.groupby("CVEGEO").agg({
+            "POBTOT": "mean",
+            "VIVTOT": "mean",
+            "VIVPAR_DES": "mean",
+            "VPH_AUTOM": "mean",
+        }).agg({
+            "POBTOT": "sum",
+            "VIVTOT": "sum",
+            "VIVPAR_DES": "sum",
+            "VPH_AUTOM": "sum",
+        })
+    inegi_data["car_ratio"] = inegi_data["VPH_AUTOM"] / inegi_data["VIVTOT"]
     df = df.drop(columns=["ID", "num_properties"]).agg(
         {
             "building_ratio": "mean",
@@ -198,9 +211,6 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
             "equipment_area": "sum",
             "num_establishments": "sum",
             "num_workers": "sum",
-            "POBTOT": "mean",
-            "VIVTOT": "sum",
-            "VIVPAR_DES": "mean",
             "servicios": "mean",
             "salud": "mean",
             "educacion": "mean",
@@ -215,11 +225,9 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
             "minutes_proximity_servicios": "mean",
             "minutes_proximity_supermercado": "mean",
             "minutes_proximity_age_diversity": "mean",
-            "VPH_AUTOM": "sum",
         }
     )
-    df["car_ratio"] = df["VPH_AUTOM"] / df["VIVTOT"]
-    return df.to_dict()
+    return {**df.to_dict(), **inegi_data.to_dict()}
 
 
 @app.get("/lens")
@@ -251,14 +259,10 @@ async def lens_layer(
     gdf["metric"] = "lots"
     united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
 
-    buffer = io.BytesIO()
-    united_gdf.to_file(buffer, driver="FlatGeobuf")
-    buffer.seek(0)  # Rewind the buffer to the beginning
+    pyogrio.write_dataframe(united_gdf, "/tmp/lots.fgb", driver="FlatGeobuf")
 
-    return Response(
-        content=buffer.read(),
-        media_type="application/octet-stream",
-        # headers={"Content-Disposition": "attachment; filename=lots.fgb"},
+    return FileResponse(
+        "/tmp/lots.fgb",
     )
 
 
