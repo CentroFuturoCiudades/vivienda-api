@@ -37,7 +37,8 @@ BLOB_URL = "https://reimaginaurbanostorage.blob.core.windows.net"
 
 
 def get_blob_url(endpoint: str) -> str:
-    return f"{BLOB_URL}/{FOLDER}/{endpoint}"
+    access_token = "sp=r&st=2024-06-27T04:05:58Z&se=2025-07-01T12:05:58Z&spr=https&sv=2022-11-02&sr=c&sig=Uz%2B9aCyARjTCTGuJiI1hWWrx8W%2B7eSlyHDM0cBlmkxE%3D"
+    return f"{BLOB_URL}/{FOLDER}/{endpoint}?{access_token}"
 
 
 def calculate_metrics(metric: str, condition: str, proximity_mapping: Dict[Any, Any]):
