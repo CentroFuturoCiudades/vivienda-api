@@ -161,9 +161,11 @@ async def custom_query(payload: Dict[Any, Any]):
         df_lots["node_ids"] = pedestrian_network.get_node_ids(
             df_lots.longitud, df_lots.latitud
         )
-        gdf_aggregate = gpd.read_file(
-            get_blob_url("accessibility_points.fgb"),
-            crs="EPSG:4326",
+
+        file = get_file( get_blob_url("accessibility_points.fgb") )
+        
+        gdf_aggregate = pyogrio.read_dataframe(
+            file
         )
 
         df_accessibility = get_all_info(
@@ -246,12 +248,13 @@ async def lens_layer(
 
     united_gdf = gpd.GeoDataFrame()
 
-    for metric in metrics:
-        file = get_file(f"{BLOB_URL}/{FOLDER}/{metric}.fgb")
-        gdf = pyogrio.read_dataframe(file, bbox=bounding_box.bounds)
-        gdf = gdf[gdf.within(areaFrame.unary_union)]
-        gdf["metric"] = metric
-        united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
+    if( metrics ):
+        for metric in metrics:
+            file = get_file(f"{BLOB_URL}/{FOLDER}/{metric}.fgb")
+            gdf = pyogrio.read_dataframe(file, bbox=bounding_box.bounds)
+            gdf = gdf[gdf.within(areaFrame.unary_union)]
+            gdf["metric"] = metric
+            united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
 
     lofsFile = get_file(f"{BLOB_URL}/{FOLDER}/lots.fgb")
     gdf = pyogrio.read_dataframe(lofsFile, bbox=bounding_box.bounds)
@@ -300,3 +303,48 @@ async def dbTest():
     print(df)
 
     return "success"
+
+@app.post("/minutes")
+async def get_minutes(payload: Dict[Any, Any]):
+    metric = payload.get("metric")
+    condition = payload.get("condition")
+    proximity_mapping = payload.get("accessibility_info")
+    if condition:
+        df_lots = get_all(
+            f"""SELECT ID, latitud, longitud FROM lots WHERE {condition}""",
+        )
+    else:
+        df_lots = get_all(
+            f"""SELECT ID, latitud, longitud FROM lots""",
+        )
+
+    df_lots["ID"] = df_lots["ID"].astype(int).astype(str)
+    df_lots = df_lots.fillna(0)
+
+    response = requests.get(get_blob_url("pedestrian_network.hd5"))
+    response.raise_for_status()
+
+    with tempfile.NamedTemporaryFile(delete=True) as tmp_file:
+        # Write the content to the temporary file
+        tmp_file.write(response.content)
+        tmp_file.flush()
+        pedestrian_network = pdna.Network.from_hdf5(tmp_file.name)
+        pedestrian_network.precompute(WALK_RADIUS)
+    df_lots["node_ids"] = pedestrian_network.get_node_ids(
+        df_lots.longitud, df_lots.latitud
+    )
+
+    file = get_file( get_blob_url("accessibility_points.fgb") )
+
+    gdf_aggregate = pyogrio.read_dataframe(
+            file
+    )
+
+    df_accessibility = get_all_info(
+        pedestrian_network, gdf_aggregate, proximity_mapping
+    )
+    df_lots = df_lots.merge(
+        df_accessibility, left_on="node_ids", right_index=True, how="left"
+    )
+    df_lots = df_lots[["ID", "minutes"]].rename(columns={"minutes": "value"})
+    return df_lots.to_dict(orient="records")
