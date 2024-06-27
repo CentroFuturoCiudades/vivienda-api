@@ -306,19 +306,20 @@ async def dbTest():
 
 @app.post("/minutes")
 async def get_minutes(payload: Dict[Any, Any]):
-    metric = payload.get("metric")
+    metric = "minutes"
     condition = payload.get("condition")
     proximity_mapping = payload.get("accessibility_info")
     if condition:
         df_lots = get_all(
-            f"""SELECT ID, latitud, longitud FROM lots WHERE {condition}""",
+            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {condition}""",
         )
     else:
         df_lots = get_all(
-            f"""SELECT ID, latitud, longitud FROM lots""",
+            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots""",
         )
 
     df_lots["ID"] = df_lots["ID"].astype(int).astype(str)
+    df_lots["value"] = df_lots["value"].fillna(0)
     df_lots = df_lots.fillna(0)
 
     response = requests.get(get_blob_url("pedestrian_network.hd5"))
@@ -346,5 +347,5 @@ async def get_minutes(payload: Dict[Any, Any]):
     df_lots = df_lots.merge(
         df_accessibility, left_on="node_ids", right_index=True, how="left"
     )
-    df_lots = df_lots[["ID", "minutes"]].rename(columns={"minutes": "value"})
+    df_lots = df_lots[["ID", "minutes","num_floors","potential_new_units","max_height"]].rename(columns={"minutes": "value"})
     return df_lots.to_dict(orient="records")
