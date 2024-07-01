@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 
-from utils.constants import CSV_PATH_MZA_2020, KEEP_COLUMNS, URL_MZA_2020
+from utils.constants import CSV_PATH_MZA_2020, KEEP_COLUMNS, URL_MZA_2020, MAPPING_SCORE_VARS
 
 
 def gather_data(state_code: int) -> pd.DataFrame:
@@ -53,15 +53,17 @@ def process_blocks(
     df = df[["CVEGEO", *KEEP_COLUMNS]].set_index("CVEGEO")
     df = df.apply(pd.to_numeric, errors="coerce").fillna(0)
     gdf_lots = gdf_lots.merge(df, on="CVEGEO", how="inner")
-    gdf_lots["P_0A5"] = gdf_lots["P_0A2"] + gdf_lots["P_3A5"]
-    gdf_lots["P_6A14"] = gdf_lots["POB0_14"] - gdf_lots["P_0A5"]
-    gdf_lots["P_25A64"] = (
-        gdf_lots["POB15_64"] - gdf_lots["P_15A17"] - gdf_lots["P_18A24"]
-    )
-    gdf_lots["P_65MAS"] = gdf_lots["POB65_MAS"]
-    gdf_lots = gdf_lots.drop(
-        columns=["P_0A2", "P_3A5", "POB0_14", "P_6A11", "POB15_64", "POB65_MAS"]
-    )
+    gdf_lots['P_25A59_F'] = gdf_lots['POBTOT'] - gdf_lots['P_0A2_F'] - gdf_lots['P_3A5_F'] - gdf_lots['P_6A11_F'] - gdf_lots['P_12A14_F'] - gdf_lots['P_15A17_F'] - gdf_lots['P_18A24_F'] - gdf_lots['P_60YMAS_F']
+    gdf_lots['P_25A59_M'] = gdf_lots['POBTOT'] - gdf_lots['P_0A2_M'] - gdf_lots['P_3A5_M'] - gdf_lots['P_6A11_M'] - gdf_lots['P_12A14_M'] - gdf_lots['P_15A17_M'] - gdf_lots['P_18A24_M'] - gdf_lots['P_60YMAS_M']
+    total_score = sum(MAPPING_SCORE_VARS.values())
+    gdf_lots['puntuaje_hogar_digno'] = 0
+    for key, value in MAPPING_SCORE_VARS.items():
+        gdf_lots['puntuaje_hogar_digno'] += gdf_lots[key] * value
+        gdf_lots['puntuaje_hogar_digno'] = gdf_lots['puntuaje_hogar_digno'] / (gdf_lots['TVIVPARHAB'] * total_score)
+
+    gdf_lots['total_cuartos'] = gdf_lots['VPH_1CUART'] + (gdf_lots['VPH_2CUART'] * 2) + (gdf_lots['VPH_3YMASC'] * 3)
+    gdf_lots['total_cuartos'] = gdf_lots['total_cuartos'].fillna(0)
+    gdf_lots['pob_por_cuarto'] = gdf_lots.apply(lambda x: x['POBTOT'] / x['total_cuartos'] if x['total_cuartos'] > 0 else 0, axis=1)
     return gdf_lots
 
 
@@ -95,5 +97,5 @@ if __name__ == "__main__":
     gdf_lots = process_blocks(gdf_bounds, gdf_blocks, gdf_lots, args.state_code)
     gdf_lots.set_index("ID").to_file(args.output_file)
     if args.view:
-        gdf_lots.plot(column="P_65MAS", legend=True, markersize=1, alpha=0.5)
+        gdf_lots.plot(column="P_60YMAS_F", legend=True, markersize=1, alpha=0.5)
         plt.show()

@@ -227,7 +227,6 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
             "minutes_proximity_educacion": "mean",
             "minutes_proximity_servicios": "mean",
             "minutes_proximity_supermercado": "mean",
-            "minutes_proximity_age_diversity": "mean",
         }
     )
     return {**df.to_dict(), **inegi_data.to_dict()}

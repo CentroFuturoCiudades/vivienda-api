@@ -176,6 +176,7 @@ if __name__ == "__main__":
         .fillna(1)
         .apply(lambda x: math.ceil(x) if x < np.inf else np.inf)
     )
+    gdf_lots['population'] = gdf_lots['PROM_OCUP'] * gdf_lots['units_estimate']
     gdf_lots["potential_new_units"] = (
         gdf_lots["max_home_units"] - gdf_lots["units_estimate"]
     )
