@@ -18,21 +18,32 @@ from utils.constants import (
 )
 
 
-def get_proximity(network, categories_mapping, distance, walk_speed):
+def get_proximity(network, categories_mapping):
     results = []
-    for category, num_pois in categories_mapping.items():
+    for category, details in categories_mapping.items():
+        distance = details['radius']
+        num_pois = details['num_pois']
         proximity = network.nearest_pois(
             distance=distance,
             category=category,
             num_pois=num_pois,
             include_poi_ids=False,
         )
-        results.append(proximity[num_pois] / (walk_speed * 60))
+        results.append(proximity[num_pois] / (WALK_SPEED * 60))
 
     # get the maximum time for each category
     final_proximity = pd.concat(results, axis=1)
+    final_proximity.columns = [
+        category for category in categories_mapping.keys()]
+    # set an accessibility score from all categories as a ponderated average using importance from the categories
+    mapping_importance = {
+        item['name']: item['importance']
+        for item in AMENITIES_MAPPING
+    }
+    final_proximity['accessibility'] = final_proximity.apply(
+        lambda x: sum([x[category] * mapping_importance[category] for category in categories_mapping.keys()]), axis=1)
     final_proximity["minutes"] = final_proximity.max(axis=1)
-    return final_proximity[['minutes']]
+    return final_proximity
 
 
 def get_accessibility(network, categories, distance, decay="linear"):
@@ -67,23 +78,27 @@ def load_network(filename, gdf_bounds, radius):
     return network
 
 
-def get_all_info(network, gdf, proximity_mapping):
+def get_all_info(network, gdf, amenities_mapping):
     new_proximity_mapping = {}
-    for sector, num_pois in proximity_mapping.items():
+    for item in amenities_mapping:
+        sector = item["name"]
+        num_pois = 1  # Assuming you want to find the nearest one
         points = gdf.loc[gdf['amenity'] == sector]
         if points.empty:
             continue
         network.set_pois(
             category=sector,
-            x_col=points.geometry.x,
-            y_col=points.geometry.y,
-            maxdist=WALK_RADIUS,
+            x_col=points.geometry.centroid.x,
+            y_col=points.geometry.centroid.y,
+            maxdist=item['radius'],
             maxitems=MAX_ESTABLISHMENTS,
         )
-        new_proximity_mapping[sector] = num_pois
+        new_proximity_mapping[sector] = {
+            'radius': item['radius'],
+            'num_pois': num_pois
+        }
 
-    proximity = get_proximity(
-        network, new_proximity_mapping, WALK_RADIUS, WALK_SPEED)
+    proximity = get_proximity(network, new_proximity_mapping)
     return proximity
 
 
@@ -150,7 +165,7 @@ if __name__ == "__main__":
     gdf_aggregate.to_file(args.accessibility_points_file)
 
     df_accessibility = get_all_info(
-        pedestrian_network, gdf_aggregate, PROXIMITY_MAPPING
+        pedestrian_network, gdf_aggregate, AMENITIES_MAPPING
     )
     gdf_lots["node_ids"] = pedestrian_network.get_node_ids(
         gdf_lots.geometry.centroid.x, gdf_lots.geometry.centroid.y
@@ -162,15 +177,15 @@ if __name__ == "__main__":
     scaler = MinMaxScaler()
 
     gdf_lots['car_ratio'] = gdf_lots["VPH_AUTOM"] / gdf_lots["VIVTOT"]
-    gdf_lots['pob_no_car'] = gdf_lots['POBTOT'] * (1 - gdf_lots['car_ratio'])
+    gdf_lots['pob_no_car'] = gdf_lots['POBTOT'] + gdf_lots['num_workers']# * (1 - gdf_lots['car_ratio'])
 
     gdf_lots['accessibility_score'] = (1 - scaler.fit_transform(
-        gdf_lots[['minutes']])) * scaler.fit_transform(gdf_lots[['pob_no_car']])
+        gdf_lots[['accessibility']])) * scaler.fit_transform(gdf_lots[['pob_no_car']])
 
     gdf_lots.to_file(args.output_file, engine="pyogrio")
     if args.view:
         fig, ax = plt.subplots()
         ax.set_axis_off()
-        gdf_lots.plot(ax=ax, column="minutes",
-                      cmap="Reds_r", legend=True, alpha=0.5)
+        gdf_lots.plot(ax=ax, column="accessibility_score",
+                      cmap="Reds", legend=True, alpha=0.5, scheme="quantiles", k=5)
         plt.show()
