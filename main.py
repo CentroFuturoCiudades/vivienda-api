@@ -181,7 +181,14 @@ async def custom_query(payload: Dict[Any, Any]):
 
 @app.get("/predios/")
 async def get_info(predio: Annotated[list[str] | None, Query()] = None):
-    df = get_all(f"""SELECT * FROM lots WHERE ID IN ({', '.join(predio)})""")
+
+    query = "SELECT * FROM lots"
+
+    if( predio ):
+        query +=  f"""WHERE ID IN ({', '.join(predio)})"""
+    
+    df = get_all( query)
+    
     inegi_data = df.groupby("CVEGEO").agg({
             "POBTOT": "mean",
             "VIVTOT": "mean",
