@@ -269,10 +269,16 @@ async def lens_layer(
     gdf["metric"] = "lots"
     united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
 
-    pyogrio.write_dataframe(united_gdf, "/tmp/lots.fgb", driver="FlatGeobuf")
+    filePath = f"./data/lots.fgb"
+
+    if not os.path.exists(filePath):
+        f = open( filePath, "x")
+        f.close()
+
+    pyogrio.write_dataframe(united_gdf, filePath , driver="FlatGeobuf")
 
     return FileResponse(
-        "/tmp/lots.fgb",
+       filePath
     )
 
 
