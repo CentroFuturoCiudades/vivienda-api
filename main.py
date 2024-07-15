@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from osmnx.distance import nearest_nodes
 from pydantic import BaseModel
+from shapely import Point, Polygon
 from shapely.geometry import box
 from sqlalchemy import create_engine
 
@@ -153,7 +154,10 @@ async def custom_query(payload: Dict[Any, Any]):
         # )
         response = requests.get(get_blob_url("pedestrian_network.hd5"))
         response.raise_for_status()
-        with tempfile.NamedTemporaryFile(delete=True) as tmp_file:
+
+        temp_dir = "./temp/"
+        os.makedirs( temp_dir, exist_ok=True)
+        with tempfile.NamedTemporaryFile(delete=False, dir=temp_dir) as tmp_file:
             # Write the content to the temporary file
             tmp_file.write(response.content)
             tmp_file.flush()
@@ -185,7 +189,7 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
     query = "SELECT * FROM lots"
 
     if( predio ):
-        query +=  f"""WHERE ID IN ({', '.join(predio)})"""
+        query +=  f""" WHERE ID IN ({', '.join(predio)})"""
     
     df = get_all( query)
     
@@ -200,6 +204,7 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
             "VIVPAR_DES": "sum",
             "VPH_AUTOM": "sum",
         })
+
     inegi_data["car_ratio"] = inegi_data["VPH_AUTOM"] / inegi_data["VIVTOT"]
     df = df.drop(columns=["ID", "num_properties"]).agg(
         {
@@ -281,6 +286,44 @@ async def lens_layer(
        filePath
     )
 
+def create_bbox(points):
+    min_x, min_y = np.min(points, axis=0)
+    max_x, max_y = np.max(points, axis=0)
+    return (min_x, min_y, max_x, max_y)
+
+
+@app.post("/poligon")
+async def poligon_layer( payload: Dict[Any, Any] ):
+    coordinates = payload.get("coordinates")
+
+    polygon = Polygon(coordinates)
+    polygon_gdf = gpd.GeoDataFrame(geometry=[polygon], crs="EPSG:4326")
+
+    bbox = create_bbox(coordinates)
+
+    lofsFile = get_file(f"{BLOB_URL}/{FOLDER}/lots.fgb")
+    gdf = pyogrio.read_dataframe(lofsFile, bbox=bbox )
+    gdf = gdf[gdf.within( polygon_gdf.unary_union )]
+
+    filePath = f"./data/lots.fgb"
+
+    if not os.path.exists(filePath):
+        f = open( filePath, "x")
+        f.close()
+
+    pyogrio.write_dataframe( gdf, filePath , driver="FlatGeobuf")
+
+    return FileResponse(
+       filePath
+    )
+    
+@app.get("/points")
+async def getPoints():
+
+    file = get_file(f"{BLOB_URL}/{FOLDER}/points.fgb")
+    gdf = pyogrio.read_dataframe(file)
+
+    return gdf.to_json()
 
 @app.get("/generate-metrics")
 async def generateMetrics():
