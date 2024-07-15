@@ -147,7 +147,7 @@ def load_messages(folder: str):
         .describe()
         .transpose()[["mean", "min", "25%", "50%", "75%", "max"]]
     )
-    with open("scripts/column_descriptions.yml", "r") as file:
+    with open("scripts/column_descriptions.yml", "r", encoding="utf8") as file:
         data = yaml.safe_load(file)
     df_lots["description"] = df_lots.index.map(data)
     PROMPT = PROMPT.format(table_columns=df_lots.to_markdown())
