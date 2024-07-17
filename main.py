@@ -157,7 +157,7 @@ async def custom_query(payload: Dict[Any, Any]):
 
         temp_dir = "./temp/"
         os.makedirs( temp_dir, exist_ok=True)
-        with tempfile.NamedTemporaryFile(delete=False, dir=temp_dir) as tmp_file:
+        with tempfile.NamedTemporaryFile(delete=True, dir=temp_dir) as tmp_file:
             # Write the content to the temporary file
             tmp_file.write(response.content)
             tmp_file.flush()
@@ -405,3 +405,51 @@ async def get_minutes(payload: Dict[Any, Any]):
     )
     df_lots = df_lots[["ID", "minutes","num_floors","potential_new_units","max_height"]].rename(columns={"minutes": "value"})
     return df_lots.to_dict(orient="records")
+
+@app.get("/layers")
+async def get_layers(
+    lat: float | None = None,
+    lon: float | None = None,
+    radius: float | None = None,
+    layers: List[str] = Query(None)
+):
+    
+    united_gdf = gpd.GeoDataFrame()
+
+    has_bounding = False
+
+    if( lat and lon ):
+
+        centroid = gpd.GeoDataFrame(
+            geometry=gpd.points_from_xy([lon], [lat]), crs="EPSG:4326"
+        )
+        areaFrame = centroid.to_crs("EPSG:32613").buffer(radius).to_crs("EPSG:4326")
+
+        bounding_box = box(*areaFrame.total_bounds)
+        
+        has_bounding= True
+    
+    if( layers ):
+        for layer in layers:
+            file = get_file(f"{BLOB_URL}/{FOLDER}/{layer}.fgb")
+            
+            if( not has_bounding ):
+                gdf = pyogrio.read_dataframe(file)
+            else:
+                gdf = pyogrio.read_dataframe(file, bbox=bounding_box.bounds)
+                gdf = gdf[gdf.within(areaFrame.unary_union)]
+
+            gdf["layer"] = layer
+            united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
+    
+    filePath = f"./data/lots.fgb"
+
+    if not os.path.exists(filePath):
+        f = open( filePath, "x")
+        f.close()
+
+    pyogrio.write_dataframe(united_gdf, filePath , driver="FlatGeobuf")
+
+    return FileResponse(
+       filePath
+    )
