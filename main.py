@@ -38,18 +38,21 @@ BLOB_URL = "https://reimaginaurbanostorage.blob.core.windows.net"
 
 
 def get_blob_url(endpoint: str) -> str:
-    access_token = "sp=r&st=2024-06-27T04:05:58Z&se=2025-07-01T12:05:58Z&spr=https&sv=2022-11-02&sr=c&sig=Uz%2B9aCyARjTCTGuJiI1hWWrx8W%2B7eSlyHDM0cBlmkxE%3D"
-    return f"{BLOB_URL}/{FOLDER}/{endpoint}?{access_token}"
+    return f"data/_primavera/final/{endpoint}"
+    # access_token = "sp=r&st=2024-06-27T04:05:58Z&se=2025-07-01T12:05:58Z&spr=https&sv=2022-11-02&sr=c&sig=Uz%2B9aCyARjTCTGuJiI1hWWrx8W%2B7eSlyHDM0cBlmkxE%3D"
+    # return f"{BLOB_URL}/{FOLDER}/{endpoint}?{access_token}"
 
 
 def calculate_metrics(metric: str, condition: str, proximity_mapping: Dict[Any, Any]):
     if condition:
         df_lots = get_all(
-            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {condition}""",
+            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {
+                condition}""",
         )
     else:
         df_lots = get_all(
-            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots""",
+            f"""SELECT ID, ({
+                metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots""",
         )
     df_lots["ID"] = df_lots["ID"].astype(int).astype(str)
     df_lots["value"] = df_lots["value"].fillna(0)
@@ -79,7 +82,8 @@ def calculate_metrics(metric: str, condition: str, proximity_mapping: Dict[Any, 
         df_lots = df_lots.merge(
             df_accessibility, left_on="node_ids", right_index=True, how="left"
         )
-        df_lots = df_lots[["ID", "minutes"]].rename(columns={"minutes": "value"})
+        df_lots = df_lots[["ID", "minutes"]].rename(
+            columns={"minutes": "value"})
     return df_lots.to_dict(orient="records")
 
 
@@ -131,14 +135,29 @@ async def get_geojson(clave: str):
 async def custom_query(payload: Dict[Any, Any]):
     metric = payload.get("metric")
     condition = payload.get("condition")
+    coordinates = payload.get("coordinates")
+    # get IDs of lots within the coordinates
+    if coordinates:
+        # get bbox from coordinates
+        polygon = Polygon(coordinates)
+        polygon_gdf = gpd.GeoDataFrame(geometry=[polygon], crs="EPSG:4326")
+        bbox = create_bbox(coordinates)
+        gdf = pyogrio.read_dataframe(
+            get_file(get_blob_url("lots.fgb")), bbox=bbox
+        )
+        gdf = gdf[gdf.within(polygon_gdf.unary_union)]
+        gdf = gdf[["ID"]]
+        condition = f"ID IN ({', '.join(gdf.ID.astype(str).tolist())})"
     proximity_mapping = payload.get("accessibility_info")
     if condition:
         df_lots = get_all(
-            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {condition}""",
+            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {
+                condition}""",
         )
     else:
         df_lots = get_all(
-            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots""",
+            f"""SELECT ID, ({
+                metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots""",
         )
     df_lots["ID"] = df_lots["ID"].astype(int).astype(str)
     df_lots["value"] = df_lots["value"].fillna(0)
@@ -156,7 +175,7 @@ async def custom_query(payload: Dict[Any, Any]):
         response.raise_for_status()
 
         temp_dir = "./temp/"
-        os.makedirs( temp_dir, exist_ok=True)
+        os.makedirs(temp_dir, exist_ok=True)
         with tempfile.NamedTemporaryFile(delete=False, dir=temp_dir) as tmp_file:
             # Write the content to the temporary file
             tmp_file.write(response.content)
@@ -167,8 +186,8 @@ async def custom_query(payload: Dict[Any, Any]):
             df_lots.longitud, df_lots.latitud
         )
 
-        file = get_file( get_blob_url("accessibility_points.fgb") )
-        
+        file = get_file(get_blob_url("accessibility_points.fgb"))
+
         gdf_aggregate = pyogrio.read_dataframe(
             file
         )
@@ -179,7 +198,8 @@ async def custom_query(payload: Dict[Any, Any]):
         df_lots = df_lots.merge(
             df_accessibility, left_on="node_ids", right_index=True, how="left"
         )
-        df_lots = df_lots[["ID", "minutes"]].rename(columns={"minutes": "value"})
+        df_lots = df_lots[["ID", "minutes"]].rename(
+            columns={"minutes": "value"})
     return df_lots.to_dict(orient="records")
 
 
@@ -188,22 +208,22 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
 
     query = "SELECT * FROM lots"
 
-    if( predio ):
-        query +=  f""" WHERE ID IN ({', '.join(predio)})"""
-    
-    df = get_all( query)
-    
+    if (predio):
+        query += f""" WHERE ID IN ({', '.join(predio)})"""
+
+    df = get_all(query)
+
     inegi_data = df.groupby("CVEGEO").agg({
-            "POBTOT": "mean",
-            "VIVTOT": "mean",
-            "VIVPAR_DES": "mean",
-            "VPH_AUTOM": "mean",
-        }).agg({
-            "POBTOT": "sum",
-            "VIVTOT": "sum",
-            "VIVPAR_DES": "sum",
-            "VPH_AUTOM": "sum",
-        })
+        "POBTOT": "mean",
+        "VIVTOT": "mean",
+        "VIVPAR_DES": "mean",
+        "VPH_AUTOM": "mean",
+    }).agg({
+        "POBTOT": "sum",
+        "VIVTOT": "sum",
+        "VIVPAR_DES": "sum",
+        "VPH_AUTOM": "sum",
+    })
 
     inegi_data["car_ratio"] = inegi_data["VPH_AUTOM"] / inegi_data["VIVTOT"]
     df = df.drop(columns=["ID", "num_properties"]).agg(
@@ -212,33 +232,19 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
             "unused_ratio": "mean",
             "green_ratio": "mean",
             "parking_ratio": "mean",
-            "park_ratio": "mean",
             "wasteful_ratio": "mean",
             "underutilized_ratio": "mean",
-            "equipment_ratio": "mean",
             "building_area": "sum",
             "unused_area": "sum",
             "green_area": "sum",
             "parking_area": "sum",
-            "park_area": "sum",
             "wasteful_area": "sum",
             "underutilized_area": "sum",
-            "equipment_area": "sum",
             "num_establishments": "sum",
             "num_workers": "sum",
-            "servicios": "mean",
-            "salud": "mean",
-            "educacion": "mean",
-            "accessibility": "mean",
             "minutes": "mean",
             "latitud": "mean",
             "longitud": "mean",
-            "minutes_proximity_big_park": "mean",
-            "minutes_proximity_small_park": "mean",
-            "minutes_proximity_salud": "mean",
-            "minutes_proximity_educacion": "mean",
-            "minutes_proximity_servicios": "mean",
-            "minutes_proximity_supermercado": "mean",
         }
     )
     return {**df.to_dict(), **inegi_data.to_dict()}
@@ -254,13 +260,14 @@ async def lens_layer(
     centroid = gpd.GeoDataFrame(
         geometry=gpd.points_from_xy([lon], [lat]), crs="EPSG:4326"
     )
-    areaFrame = centroid.to_crs("EPSG:32613").buffer(radius).to_crs("EPSG:4326")
+    areaFrame = centroid.to_crs("EPSG:32613").buffer(
+        radius).to_crs("EPSG:4326")
 
     bounding_box = box(*areaFrame.total_bounds)
 
     united_gdf = gpd.GeoDataFrame()
 
-    if( metrics ):
+    if (metrics):
         for metric in metrics:
             file = get_file(f"{BLOB_URL}/{FOLDER}/{metric}.fgb")
             gdf = pyogrio.read_dataframe(file, bbox=bounding_box.bounds)
@@ -268,23 +275,17 @@ async def lens_layer(
             gdf["metric"] = metric
             united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
 
-    lofsFile = get_file(f"{BLOB_URL}/{FOLDER}/lots.fgb")
-    gdf = pyogrio.read_dataframe(lofsFile, bbox=bounding_box.bounds)
-    gdf = gdf[gdf.within(areaFrame.unary_union)]
-    gdf["metric"] = "lots"
-    united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
-
     filePath = f"./data/lots.fgb"
-
     if not os.path.exists(filePath):
-        f = open( filePath, "x")
+        f = open(filePath, "x")
         f.close()
 
-    pyogrio.write_dataframe(united_gdf, filePath , driver="FlatGeobuf")
+    pyogrio.write_dataframe(united_gdf, filePath, driver="FlatGeobuf")
 
     return FileResponse(
-       filePath
+        filePath
     )
+
 
 def create_bbox(points):
     min_x, min_y = np.min(points, axis=0)
@@ -293,30 +294,32 @@ def create_bbox(points):
 
 
 @app.post("/poligon")
-async def poligon_layer( payload: Dict[Any, Any] ):
+async def poligon_layer(payload: Dict[Any, Any]):
     coordinates = payload.get("coordinates")
+    layer = payload.get("layer")
 
     polygon = Polygon(coordinates)
     polygon_gdf = gpd.GeoDataFrame(geometry=[polygon], crs="EPSG:4326")
 
     bbox = create_bbox(coordinates)
 
-    lofsFile = get_file(f"{BLOB_URL}/{FOLDER}/lots.fgb")
-    gdf = pyogrio.read_dataframe(lofsFile, bbox=bbox )
-    gdf = gdf[gdf.within( polygon_gdf.unary_union )]
+    lofsFile = get_file(f"data/_primavera/final/{layer}.fgb")
+    gdf = pyogrio.read_dataframe(lofsFile, bbox=bbox)
+    gdf = gdf[gdf.within(polygon_gdf.unary_union)]
 
-    filePath = f"./data/lots.fgb"
+    filePath = f"./data/{layer}.fgb"
 
     if not os.path.exists(filePath):
-        f = open( filePath, "x")
+        f = open(filePath, "x")
         f.close()
 
-    pyogrio.write_dataframe( gdf, filePath , driver="FlatGeobuf")
+    pyogrio.write_dataframe(gdf, filePath, driver="FlatGeobuf")
 
     return FileResponse(
-       filePath
+        filePath
     )
-    
+
+
 @app.get("/points")
 async def getPoints():
 
@@ -324,6 +327,7 @@ async def getPoints():
     gdf = pyogrio.read_dataframe(file)
 
     return gdf.to_json()
+
 
 @app.get("/generate-metrics")
 async def generateMetrics():
@@ -351,14 +355,17 @@ async def dbTest():
     password = os.getenv("SQL_PASSWORD")
     driver = os.getenv("SQL_DRIVER")
 
-    connection_string = f"DRIVER={driver};SERVER=tcp:{server},1433;DATABASE={database};UID={username};PWD={password};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-    engine = create_engine(f"mssql+pyodbc:///?odbc_connect={connection_string}")
+    connection_string = f"DRIVER={driver};SERVER=tcp:{server},1433;DATABASE={database};UID={
+        username};PWD={password};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+    engine = create_engine(
+        f"mssql+pyodbc:///?odbc_connect={connection_string}")
 
     df = pd.read_sql(query, engine)
 
     print(df)
 
     return "success"
+
 
 @app.post("/minutes")
 async def get_minutes(payload: Dict[Any, Any]):
@@ -367,11 +374,13 @@ async def get_minutes(payload: Dict[Any, Any]):
     proximity_mapping = payload.get("accessibility_info")
     if condition:
         df_lots = get_all(
-            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {condition}""",
+            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {
+                condition}""",
         )
     else:
         df_lots = get_all(
-            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots""",
+            f"""SELECT ID, ({
+                metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots""",
         )
 
     df_lots["ID"] = df_lots["ID"].astype(int).astype(str)
@@ -391,10 +400,10 @@ async def get_minutes(payload: Dict[Any, Any]):
         df_lots.longitud, df_lots.latitud
     )
 
-    file = get_file( get_blob_url("accessibility_points.fgb") )
+    file = get_file(get_blob_url("accessibility_points.fgb"))
 
     gdf_aggregate = pyogrio.read_dataframe(
-            file
+        file
     )
 
     df_accessibility = get_all_info(
@@ -403,5 +412,6 @@ async def get_minutes(payload: Dict[Any, Any]):
     df_lots = df_lots.merge(
         df_accessibility, left_on="node_ids", right_index=True, how="left"
     )
-    df_lots = df_lots[["ID", "minutes","num_floors","potential_new_units","max_height"]].rename(columns={"minutes": "value"})
+    df_lots = df_lots[["ID", "minutes", "num_floors", "potential_new_units",
+                       "max_height"]].rename(columns={"minutes": "value"})
     return df_lots.to_dict(orient="records")
