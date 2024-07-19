@@ -182,54 +182,133 @@ async def custom_query(payload: Dict[Any, Any]):
 @app.get("/predios/")
 async def get_info(predio: Annotated[list[str] | None, Query()] = None):
     df = get_all(f"""SELECT * FROM lots WHERE ID IN ({', '.join(predio)})""")
+    print(df ["VPH_AUTOM"].describe())
+    
+    df = df.fillna(0) # -----------------------------------------------
+    print("Datos después de fillna(0) en df:", df)
+    
     inegi_data = df.groupby("CVEGEO").agg({
-            "POBTOT": "mean",
-            "VIVTOT": "mean",
-            "VIVPAR_DES": "mean",
-            "VPH_AUTOM": "mean",
-        }).agg({
+            "POBTOT": "first",
+            "POBFEM": "first",
+            "POBMAS": "first",
+            "VIVTOT": "first",
+            "VIVPAR_HAB": "first",
+            "VIVPAR_DES": "first",
+            "VPH_AUTOM": "first", 
+            "PAFIL_IPRIV": "first", 
+            #"GRAPROES": "first",
+            
+            "P_0A2_F": "first",
+            "P_0A2_M": "first",
+            "P_3A5_F": "first",
+            "P_3A5_M": "first",
+            "P_6A11_F": "first",
+            "P_6A11_M": "first",
+            "P_12A14_F": "first",
+            "P_12A14_M": "first",
+            "P_15A17_F": "first",
+            "P_15A17_M": "first",
+            "P_18A24_F": "first",
+            "P_18A24_M": "first",
+ 
+            "P_60YMAS_F": "first",
+            "P_60YMAS_M": "first",
+        })   
+        
+    inegi_data = inegi_data.fillna(0)
+    print("Datos después de fillna(0) en inegi_data:", inegi_data)
+            
+    inegi_data = inegi_data.agg({
             "POBTOT": "sum",
             "VIVTOT": "sum",
-            "VIVPAR_DES": "sum",
-            "VPH_AUTOM": "sum",
+            "VIVPAR_HAB": "sum",
+            "VIVPAR_DES": "sum", # Multiplicar por 100 puntuaje_hogar_digno y dejar sin decimales escuela y seguro médico
+            "VPH_AUTOM": "sum", # ---------- 
+            "PAFIL_IPRIV": "sum",
+            #"GRAPROES": "sum",
+            "POBFEM": "sum",
+            "POBMAS": "sum",
+            
+            "P_0A2_F": "sum",
+            "P_0A2_M": "sum",
+            "P_3A5_F": "sum",
+            "P_3A5_M": "sum",
+            "P_6A11_F": "sum",
+            "P_6A11_M": "sum",
+            "P_12A14_F": "sum",
+            "P_12A14_M": "sum",
+            "P_15A17_F": "sum",
+            "P_15A17_M": "sum",
+            "P_18A24_F": "sum",
+            "P_18A24_M": "sum",
+            
+            "P_60YMAS_F": "sum",
+            "P_60YMAS_M": "sum",
         })
-    inegi_data["car_ratio"] = inegi_data["VPH_AUTOM"] / inegi_data["VIVTOT"]
+        
+    inegi_data = inegi_data.fillna(0)
+    print("Datos después de la segunda agregación y fillna(0):", inegi_data)
+    
+    df["car_ratio"] = df["VPH_AUTOM"] / df["VIVPAR_HAB"]
+    df = df.replace([np.inf, -np.inf], np.nan).fillna(0)
+    print("Datos después de calcular car_ratio y reemplazar inf:", df)
+    print(df["car_ratio"])
+    
+    df['PEA'] = df['PEA'].fillna(0)
+    df['PEA'] = pd.to_numeric(df['PEA'], errors='coerce').fillna(0).astype(int)
+    
+    df['car_ratio'] = df['car_ratio'].fillna(0)
+    df['car_ratio'] = pd.to_numeric(df['car_ratio'], errors='coerce').fillna(0).astype(int)
+    
+    
+    df['pob_por_cuarto'] = df['pob_por_cuarto'].fillna(0)
+    df['pob_por_cuarto'] = pd.to_numeric(df['pob_por_cuarto'], errors='coerce').fillna(0).astype(int)
+
+    df['puntuaje_hogar_digno'] = df['puntuaje_hogar_digno'].fillna(0)
+    df['puntuaje_hogar_digno'] = pd.to_numeric(df['puntuaje_hogar_digno'], errors='coerce').fillna(0).astype(int)
+
+    
+    inegi_data['P_25A59_F'] = inegi_data['POBFEM'] - inegi_data["P_0A2_F"] - inegi_data["P_3A5_F"] - inegi_data["P_6A11_F"] - inegi_data["P_12A14_F"] - inegi_data["P_15A17_F"] - inegi_data["P_18A24_F"] - inegi_data["P_60YMAS_F"]
+    inegi_data['P_25A59_M'] = inegi_data['POBMAS'] - inegi_data["P_0A2_M"] - inegi_data["P_3A5_M"] - inegi_data["P_6A11_M"] - inegi_data["P_12A14_M"] - inegi_data["P_15A17_M"] - inegi_data["P_18A24_M"] - inegi_data["P_60YMAS_M"]
+  
+    
     df = df.drop(columns=["ID", "num_properties"]).agg(
         {
             "building_ratio": "mean",
             "unused_ratio": "mean",
             "green_ratio": "mean",
             "parking_ratio": "mean",
-            "park_ratio": "mean",
             "wasteful_ratio": "mean",
             "underutilized_ratio": "mean",
-            "equipment_ratio": "mean",
+            "amenity_ratio": "mean",
             "building_area": "sum",
-            "unused_area": "sum",
+            "unused_area": "sum", 
             "green_area": "sum",
             "parking_area": "sum",
-            "park_area": "sum",
             "wasteful_area": "sum",
             "underutilized_area": "sum",
-            "equipment_area": "sum",
+            "amenity_area": "sum",
             "num_establishments": "sum",
             "num_workers": "sum",
-            "servicios": "mean",
-            "salud": "mean",
-            "educacion": "mean",
-            "accessibility": "mean",
             "minutes": "mean",
             "latitud": "mean",
             "longitud": "mean",
-            "minutes_proximity_big_park": "mean",
-            "minutes_proximity_small_park": "mean",
-            "minutes_proximity_salud": "mean",
-            "minutes_proximity_educacion": "mean",
-            "minutes_proximity_servicios": "mean",
-            "minutes_proximity_supermercado": "mean",
+            
+            
+            "car_ratio": "mean",
+            "PEA": "mean",  # pob económicamente activa
+            "pob_por_cuarto": "mean",
+            "puntuaje_hogar_digno": "mean",
+            "GRAPROES": "mean",
         }
     )
+    
+    df = df.fillna(0)
+    
+    print(df)
+    
     return {**df.to_dict(), **inegi_data.to_dict()}
+
 
 
 @app.get("/lens")
@@ -262,10 +341,10 @@ async def lens_layer(
     gdf["metric"] = "lots"
     united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
 
-    pyogrio.write_dataframe(united_gdf, "/tmp/lots.fgb", driver="FlatGeobuf")
+    pyogrio.write_dataframe(united_gdf, "data/lots.fgb", driver="FlatGeobuf")
 
     return FileResponse(
-        "/tmp/lots.fgb",
+        "data/lots.fgb",
     )
 
 
@@ -349,3 +428,4 @@ async def get_minutes(payload: Dict[Any, Any]):
     )
     df_lots = df_lots[["ID", "minutes","num_floors","potential_new_units","max_height"]].rename(columns={"minutes": "value"})
     return df_lots.to_dict(orient="records")
+

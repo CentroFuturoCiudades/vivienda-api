@@ -1,0 +1,2 @@
+2024-07-18 13:26:48,110 ERROR main Cannot convert non-finite values (NA or inf) to integer
+2024-07-18 13:27:57,706 ERROR main Cannot convert non-finite values (NA or inf) to integer
