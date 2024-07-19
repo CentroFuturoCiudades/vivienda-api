@@ -6,7 +6,7 @@ import time
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
-import overturemaps
+# import overturemaps
 
 from utils.utils import normalize, remove_outliers
 
@@ -56,7 +56,7 @@ if __name__ == "__main__":
         for i in regulations:
             if "IVE" in i and "density" not in i:
                 i["density"] = i["CUS"] * 10_000 / i["IVE"]
-    gdf_lots = gpd.read_file(args.accessibility_file, crs="EPSG:4326")
+    gdf_lots = gpd.read_file(args.accessibility_file, engine="pyogrio").to_crs("EPSG:4326")
 
     gdf_lots["num_properties"] = gdf_lots["TVIVHAB"] + gdf_lots["num_establishments"]
     gdf_lots["wasteful_area"] = (
@@ -128,11 +128,11 @@ if __name__ == "__main__":
     gdf_bounds = gpd.read_file(args.bounds_file, crs="EPSG:4326")
     bounds = gdf_bounds.geometry[0]
     bbox = bounds.bounds
-    gdf = gather_overture_data(bbox)
-    gdf_temp = gdf_lots.overlay(gdf, how="intersection")
-    gdf_temp = gdf_temp.groupby("ID").agg({"num_floors": "max"})
-    gdf_lots = gdf_lots.merge(gdf_temp, on="ID")
-    # gdf_lots["num_floors"] = 1
+    # gdf = gather_overture_data(bbox)
+    # gdf_temp = gdf_lots.overlay(gdf, how="intersection")
+    # gdf_temp = gdf_temp.groupby("ID").agg({"num_floors": "max"})
+    # gdf_lots = gdf_lots.merge(gdf_temp, on="ID")
+    gdf_lots["num_floors"] = 1
 
     gdf_lots["max_COS"] = gdf_lots.apply(lambda x: get_zone_info(x, "COS"), axis=1)
     gdf_lots["max_CUS"] = gdf_lots.apply(lambda x: get_zone_info(x, "CUS"), axis=1)
@@ -186,7 +186,7 @@ if __name__ == "__main__":
         gdf_lots["green_ratio"] + gdf_lots["unused_ratio"] + gdf_lots["parking_ratio"]
     )
 
-    gdf_lots.to_file(args.output_file)
+    gdf_lots.to_file(args.output_file, engine="pyogrio")
 
     if args.view:
         fig, ax = plt.subplots(ncols=3, figsize=(30, 30))

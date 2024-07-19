@@ -38,7 +38,7 @@ BLOB_URL = "https://reimaginaurbanostorage.blob.core.windows.net"
 
 
 def get_blob_url(endpoint: str) -> str:
-    access_token = "sp=r&st=2024-06-27T04:05:58Z&se=2025-07-01T12:05:58Z&spr=https&sv=2022-11-02&sr=c&sig=Uz%2B9aCyARjTCTGuJiI1hWWrx8W%2B7eSlyHDM0cBlmkxE%3D"
+    access_token = os.getenv("BLOB_TOKEN")
     return f"{BLOB_URL}/{FOLDER}/{endpoint}?{access_token}"
 
 
@@ -121,10 +121,12 @@ async def get_coordinates():
 
 @app.get("/geojson/{clave}")
 async def get_geojson(clave: str):
-    gdf = gpd.read_file(get_blob_url(f"{clave}.fgb"))
-    print(gdf)
-    return json.loads(gdf.to_json())
-    # return FileResponse(f"{FOLDER}/{clave}.geojson")
+    return FileResponse(f"data/_primavera/final/{clave}.fgb")
+
+
+@app.get("/bounds")
+async def get_bounds():
+    return FileResponse(f"data/_primavera/final/bounds.geojson")
 
 
 @app.post("/query")
@@ -212,33 +214,33 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
             "unused_ratio": "mean",
             "green_ratio": "mean",
             "parking_ratio": "mean",
-            "park_ratio": "mean",
+            # "park_ratio": "mean",
             "wasteful_ratio": "mean",
             "underutilized_ratio": "mean",
-            "equipment_ratio": "mean",
+            "amenity_ratio": "mean",
             "building_area": "sum",
             "unused_area": "sum",
             "green_area": "sum",
             "parking_area": "sum",
-            "park_area": "sum",
+            # "park_area": "sum",
             "wasteful_area": "sum",
             "underutilized_area": "sum",
-            "equipment_area": "sum",
+            "amenity_area": "sum",
             "num_establishments": "sum",
             "num_workers": "sum",
-            "servicios": "mean",
-            "salud": "mean",
-            "educacion": "mean",
-            "accessibility": "mean",
+            # "servicios": "mean",
+            # "salud": "mean",
+            # "educacion": "mean",
+            # "accessibility": "mean",
             "minutes": "mean",
             "latitud": "mean",
             "longitud": "mean",
-            "minutes_proximity_big_park": "mean",
-            "minutes_proximity_small_park": "mean",
-            "minutes_proximity_salud": "mean",
-            "minutes_proximity_educacion": "mean",
-            "minutes_proximity_servicios": "mean",
-            "minutes_proximity_supermercado": "mean",
+            # "minutes_proximity_big_park": "mean",
+            # "minutes_proximity_small_park": "mean",
+            # "minutes_proximity_salud": "mean",
+            # "minutes_proximity_educacion": "mean",
+            # "minutes_proximity_servicios": "mean",
+            # "minutes_proximity_supermercado": "mean",
         }
     )
     return {**df.to_dict(), **inegi_data.to_dict()}
@@ -262,13 +264,16 @@ async def lens_layer(
 
     if( metrics ):
         for metric in metrics:
-            file = get_file(f"{BLOB_URL}/{FOLDER}/{metric}.fgb")
+            file = get_file(get_blob_url(f"{metric}.fgb"))
+            # file = get_file(f"{BLOB_URL}/{FOLDER}/{metric}.fgb")
             gdf = pyogrio.read_dataframe(file, bbox=bounding_box.bounds)
             gdf = gdf[gdf.within(areaFrame.unary_union)]
             gdf["metric"] = metric
             united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
 
-    lofsFile = get_file(f"{BLOB_URL}/{FOLDER}/lots.fgb")
+    # lofsFile = get_file(f"{BLOB_URL}/{FOLDER}/lots.fgb")
+    lofsFile = get_file(get_blob_url(f"lots.fgb"))
+    print(lofsFile)
     gdf = pyogrio.read_dataframe(lofsFile, bbox=bounding_box.bounds)
     gdf = gdf[gdf.within(areaFrame.unary_union)]
     gdf["metric"] = "lots"
