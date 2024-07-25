@@ -128,14 +128,14 @@ if __name__ == "__main__":
                 df[column] = pd.to_numeric(df[column], errors="coerce")
     df["region"] = args.region
 
-    df.to_sql(
-        "lots",
-        engine,
-        if_exists="replace",
-        index=False,
-        index_label="ID",
-        chunksize=5000,
-    )
+    # df.to_sql(
+    #     "lots",
+    #     engine,
+    #     if_exists="replace",
+    #     index=False,
+    #     index_label="ID",
+    #     chunksize=5000,
+    # )
     df.to_sql(
         "lots",
         f"sqlite:///data/lots.db",

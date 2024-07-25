@@ -38,9 +38,8 @@ BLOB_URL = "https://reimaginaurbanostorage.blob.core.windows.net"
 
 
 def get_blob_url(endpoint: str) -> str:
-    return f"data/_primavera/final/{endpoint}"
-    # access_token = "sp=r&st=2024-06-27T04:05:58Z&se=2025-07-01T12:05:58Z&spr=https&sv=2022-11-02&sr=c&sig=Uz%2B9aCyARjTCTGuJiI1hWWrx8W%2B7eSlyHDM0cBlmkxE%3D"
-    # return f"{BLOB_URL}/{FOLDER}/{endpoint}?{access_token}"
+    access_token = os.getenv("BLOB_TOKEN")
+    return f"{BLOB_URL}/{FOLDER}/{endpoint}?{access_token}"
 
 
 def calculate_metrics(metric: str, condition: str, proximity_mapping: Dict[Any, Any]):
@@ -125,10 +124,12 @@ async def get_coordinates():
 
 @app.get("/geojson/{clave}")
 async def get_geojson(clave: str):
-    gdf = gpd.read_file(get_blob_url(f"{clave}.fgb"))
-    print(gdf)
-    return json.loads(gdf.to_json())
-    # return FileResponse(f"{FOLDER}/{clave}.geojson")
+    return FileResponse(f"data/_primavera/final/{clave}.fgb")
+
+
+@app.get("/bounds")
+async def get_bounds():
+    return FileResponse(f"data/_primavera/final/bounds.geojson")
 
 
 @app.post("/query")
@@ -175,8 +176,8 @@ async def custom_query(payload: Dict[Any, Any]):
         response.raise_for_status()
 
         temp_dir = "./temp/"
-        os.makedirs(temp_dir, exist_ok=True)
-        with tempfile.NamedTemporaryFile(delete=False, dir=temp_dir) as tmp_file:
+        os.makedirs( temp_dir, exist_ok=True)
+        with tempfile.NamedTemporaryFile(delete=True, dir=temp_dir) as tmp_file:
             # Write the content to the temporary file
             tmp_file.write(response.content)
             tmp_file.flush()
@@ -232,19 +233,33 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
             "unused_ratio": "mean",
             "green_ratio": "mean",
             "parking_ratio": "mean",
+            # "park_ratio": "mean",
             "wasteful_ratio": "mean",
             "underutilized_ratio": "mean",
+            "amenity_ratio": "mean",
             "building_area": "sum",
             "unused_area": "sum",
             "green_area": "sum",
             "parking_area": "sum",
+            # "park_area": "sum",
             "wasteful_area": "sum",
             "underutilized_area": "sum",
+            "amenity_area": "sum",
             "num_establishments": "sum",
             "num_workers": "sum",
+            # "servicios": "mean",
+            # "salud": "mean",
+            # "educacion": "mean",
+            # "accessibility": "mean",
             "minutes": "mean",
             "latitud": "mean",
             "longitud": "mean",
+            # "minutes_proximity_big_park": "mean",
+            # "minutes_proximity_small_park": "mean",
+            # "minutes_proximity_salud": "mean",
+            # "minutes_proximity_educacion": "mean",
+            # "minutes_proximity_servicios": "mean",
+            # "minutes_proximity_supermercado": "mean",
         }
     )
     return {**df.to_dict(), **inegi_data.to_dict()}
@@ -269,11 +284,20 @@ async def lens_layer(
 
     if (metrics):
         for metric in metrics:
-            file = get_file(f"{BLOB_URL}/{FOLDER}/{metric}.fgb")
+            file = get_file(get_blob_url(f"{metric}.fgb"))
+            # file = get_file(f"{BLOB_URL}/{FOLDER}/{metric}.fgb")
             gdf = pyogrio.read_dataframe(file, bbox=bounding_box.bounds)
             gdf = gdf[gdf.within(areaFrame.unary_union)]
             gdf["metric"] = metric
             united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
+
+    # lofsFile = get_file(f"{BLOB_URL}/{FOLDER}/lots.fgb")
+    lofsFile = get_file(get_blob_url(f"lots.fgb"))
+    print(lofsFile)
+    gdf = pyogrio.read_dataframe(lofsFile, bbox=bounding_box.bounds)
+    gdf = gdf[gdf.within(areaFrame.unary_union)]
+    gdf["metric"] = "lots"
+    united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
 
     filePath = f"./data/lots.fgb"
     if not os.path.exists(filePath):
@@ -415,3 +439,53 @@ async def get_minutes(payload: Dict[Any, Any]):
     df_lots = df_lots[["ID", "minutes", "num_floors", "potential_new_units",
                        "max_height"]].rename(columns={"minutes": "value"})
     return df_lots.to_dict(orient="records")
+    df_lots = df_lots[["ID", "minutes","num_floors","potential_new_units","max_height"]].rename(columns={"minutes": "value"})
+    return df_lots.to_dict(orient="records")
+
+@app.get("/layers")
+async def get_layers(
+    lat: float | None = None,
+    lon: float | None = None,
+    radius: float | None = None,
+    layers: List[str] = Query(None)
+):
+    
+    united_gdf = gpd.GeoDataFrame()
+
+    has_bounding = False
+
+    if( lat and lon ):
+
+        centroid = gpd.GeoDataFrame(
+            geometry=gpd.points_from_xy([lon], [lat]), crs="EPSG:4326"
+        )
+        areaFrame = centroid.to_crs("EPSG:32613").buffer(radius).to_crs("EPSG:4326")
+
+        bounding_box = box(*areaFrame.total_bounds)
+        
+        has_bounding= True
+    
+    if( layers ):
+        for layer in layers:
+            file = get_file(f"{BLOB_URL}/{FOLDER}/{layer}.fgb")
+            
+            if( not has_bounding ):
+                gdf = pyogrio.read_dataframe(file)
+            else:
+                gdf = pyogrio.read_dataframe(file, bbox=bounding_box.bounds)
+                gdf = gdf[gdf.within(areaFrame.unary_union)]
+
+            gdf["layer"] = layer
+            united_gdf = pd.concat([united_gdf, gdf], ignore_index=True)
+    
+    filePath = f"./data/lots.fgb"
+
+    if not os.path.exists(filePath):
+        f = open( filePath, "x")
+        f.close()
+
+    pyogrio.write_dataframe(united_gdf, filePath , driver="FlatGeobuf")
+
+    return FileResponse(
+       filePath
+    )
