@@ -13,6 +13,7 @@ bounds_file="$FOLDER/original/bounds.geojson"
 blocks_file="$FOLDER/original/blocks.geojson"
 lots_file="$FOLDER/original/lots.fgb"
 zoning_regulations_file="$FOLDER/original/zoning_regulations.json"
+amenities_file="$FOLDER/original/EQUIPAMIENTOS/EQUIPAMIENTOS.shp"
 
 # Gather
 vegetation_file="$FOLDER/final/vegetation.fgb"
@@ -31,7 +32,7 @@ mkdir -p "$FOLDER/final"
 pedestrian_network_file="$FOLDER/final/pedestrian_network.hd5"
 accessibility_points_file="$FOLDER/final/accessibility_points.fgb"
 landuse_other_file="$FOLDER/final/landuse_{}.fgb"
-landuse_park_file="$FOLDER/final/landuse_park.fgb"
+landuse_park_file="$FOLDER/final/landuse_amenity.fgb"
 final_file="$FOLDER/final/lots.fgb"
 db_file="$FOLDER/final/predios.db"
 
@@ -48,10 +49,10 @@ time poetry run python3 -m scripts.process_lots "$bounds_file" "$blocks_file" "$
 echo "Assigning establishments"
 time poetry run python3 -m scripts.assign_establishments "$population_file" "$establishments_file" "$lots_establishments_file" $VERBOSE_OPTION
 echo "Assigning landuse"
-time poetry run python3 -m scripts.landuse "$bounds_file" "$lots_establishments_file" "$buildings_file" "$vegetation_file" "$landuse_other_file" "$landuse_file" $VERBOSE_OPTION
+time poetry run python3 -m scripts.landuse "$bounds_file" "$lots_establishments_file" "$buildings_file" "$establishments_file" "$amenities_file" "$vegetation_file" "$landuse_other_file" "$landuse_file" $VERBOSE_OPTION
 echo "Calculating accessibility"
-time poetry run python3 -m scripts.accessibility "$bounds_file" "$landuse_file" "$establishments_file" "$landuse_park_file" "$pedestrian_network_file" "$accessibility_points_file" "$accessibility_file" $VERBOSE_OPTION
+time python3 -m scripts.accessibility "$bounds_file" "$landuse_file" "$establishments_file" "$landuse_park_file" "$pedestrian_network_file" "$accessibility_points_file" "$accessibility_file" $VERBOSE_OPTION
 echo "Calculating utilization"
-time poetry run python3 -m scripts.utilization "$bounds_file" "$accessibility_file" "$lots_file" "$zoning_regulations_file" "$final_file" $VERBOSE_OPTION
+time python3 -m scripts.utilization "$bounds_file" "$accessibility_file" "$lots_file" "$zoning_regulations_file" "$final_file" $VERBOSE_OPTION
 echo "Populating database"
 time poetry run python3 -m scripts.populate_db "$final_file" "$db_file" "$REGION" $VERBOSE_OPTION

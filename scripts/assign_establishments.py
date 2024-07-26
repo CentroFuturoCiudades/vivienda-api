@@ -3,8 +3,50 @@ import argparse
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import pandas as pd
+import re
 
-from utils.constants import AMENITIES_MAPPING
+from utils.constants import AMENITIES_MAPPING, DENUE_TO_AMENITY_MAPPING
+import numpy as np
+
+
+mapping = {
+    r"^623": "Asistencia social",
+    r"^6215": "Laboratorios clínicos",
+    r"^6212": "Otros consultorios",
+    r"^6213": "Otros consultorios",
+    r"^6211": "Consultorios médicos",
+    r"^6221": "Hospital general",
+    r"^6222": "Hospitales psiquiátricos",
+    r"^6223": "Hospitales otras especialidades",
+    r"^46411": "Farmacia",
+    r"^71394": "Clubs deportivos y de acondicionamiento físico",
+    r"^51213": "Cine",
+    r"^7139": "Otros Servicios recreativos",
+    r"^7112": "Espectáculos deportivos",
+    r"^7131": "Parques recreativos",
+    r"^71212": "Sitios históricos",
+    r"^71213": "Jardines botánicos y zoológicos",
+    r"^7223": "Grutas, parques naturales o patrimonio cultural",
+    r"^7111": "Espectáculos artísticos y culturales",
+    r"^71211": "Museos",
+    r"^51921": "Biblioteca",
+    r"^6244": "Guarderia",
+    r"^61111": "Educación Preescolar",
+    r"^61112": "Educación Primaria",
+    r"^61113": "Educación Secundaria",
+    r"^61114": "Educación Secundaria Técnica",
+    r"^61115": "Educacion Media Técnica",
+    r"^61116": "Educación Media Superior",
+    r"^61121": "Educación Técnica Superior",
+    r"^6113": "Educación Superior",
+}
+
+
+def map_equipment_type(clee):
+    for pattern, equipment_type in mapping.items():
+        if re.match(pattern, clee):
+            return equipment_type
+    return np.nan
 
 
 def assign_by_buffer(
@@ -56,22 +98,19 @@ def assign_by_proximity(
     _gdf_block_lots = gdf_block_lots.to_crs("EPSG:32614")
     _gdf_denue["num_establishments"] = 1
     new_gdf = gpd.sjoin_nearest(
-        _gdf_denue, _gdf_block_lots, how="left", max_distance=10
+        _gdf_denue, _gdf_block_lots[["ID", "geometry"]], how="left", max_distance=10
     )
-    sector_columns = [
-        x["column"] for x in AMENITIES_MAPPING if x["type"] == "establishment"
-    ]
     gdf_final = new_gdf.groupby("ID").agg(
         {
             "num_establishments": "count",
             "num_workers": "sum",
-            **{x: "sum" for x in sector_columns},
         }
     )
+    new_gdf = new_gdf.rename(columns={"ID": "ID_lot"})
     gdf_final = _gdf_block_lots.merge(gdf_final, on="ID", how="left")
-    columns = ["num_establishments", "num_workers", *sector_columns]
+    columns = ["num_establishments", "num_workers"]
     gdf_final[columns] = gdf_final[columns].fillna(0)
-    return gdf_final.to_crs("EPSG:4326")
+    return gdf_final.to_crs("EPSG:4326"), new_gdf
 
 
 def get_args():
@@ -97,18 +136,21 @@ if __name__ == "__main__":
     gdf_denue = gdf_denue.rename(columns={"id": "DENUE_ID"})
     # Get which sector each establishment belongs to
     gdf_denue["codigo_act"] = gdf_denue["codigo_act"].astype(str)
-    columns_establishments = [
-        x for x in AMENITIES_MAPPING if x["type"] == "establishment"
+    gdf_denue["amenity"] = None
+    for item in DENUE_TO_AMENITY_MAPPING:
+        print(item)
+        gdf_denue.loc[gdf_denue.eval(item["query"]), "amenity"] = item["name"]
+    gdf_denue = gdf_denue.dropna(subset=["amenity"])
+    gdf_denue = gdf_denue[
+        ["DENUE_ID", "geometry", "amenity", "nom_estab", "codigo_act", "num_workers"]
     ]
-    for item in columns_establishments:
-        gdf_denue[item["column"]] = gdf_denue.query(item["query"]).any(axis=1)
-        gdf_denue[item["column"]] = gdf_denue[item["column"]].fillna(0).astype(int)
     # gdf_denue['date'] = pd.to_datetime(gdf_denue['fecha_alta'], format='%Y-%m')
     # gdf_denue['year'] = gdf_denue['date'].dt.year
 
-    gdf_lots = assign_by_proximity(gdf_lots, gdf_denue)
+    gdf_lots, gdf_denue = assign_by_proximity(gdf_lots, gdf_denue)
     gdf_lots.to_file(args.output_file)
+    gdf_denue.to_file(args.establishments_file)
 
     if args.view:
-        gdf_lots.plot(column="supermercado", legend=True, alpha=0.5)
+        gdf_denue.plot(column="amenity", legend=True, alpha=0.5)
         plt.show()

@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import osmnx as ox
 import pandana as pdna
 import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
 
 from utils.constants import (
     ACCESIBILITY_MAPPING,
@@ -17,24 +19,30 @@ from utils.constants import (
 )
 
 
-def get_proximity(network, categories_mapping, distance, walk_speed):
+def get_proximity(network, categories_mapping):
     results = []
-    for category, num_pois in categories_mapping.items():
+    for category, details in categories_mapping.items():
+        distance = details['radius']
+        num_pois = details['num_pois']
         proximity = network.nearest_pois(
             distance=distance,
             category=category,
             num_pois=num_pois,
             include_poi_ids=False,
         )
-        # Calculate time in minutes for the farthest POI in list
-        proximity["minutes_" + category] = proximity[num_pois] / (walk_speed * 60)
-        # Select only the relevant column and rename it
-        proximity = proximity[["minutes_" + category]]
-        # keep the maximum time for each lot
-        results.append(proximity)
+        results.append(proximity[num_pois] / (WALK_SPEED * 60))
 
     # get the maximum time for each category
     final_proximity = pd.concat(results, axis=1)
+    final_proximity.columns = [
+        category for category in categories_mapping.keys()]
+    # set an accessibility score from all categories as a ponderated average using importance from the categories
+    mapping_importance = {
+        item['name']: item['importance']
+        for item in AMENITIES_MAPPING
+    }
+    final_proximity['accessibility'] = final_proximity.apply(
+        lambda x: sum([x[category] * mapping_importance[category] for category in categories_mapping.keys()]), axis=1)
     final_proximity["minutes"] = final_proximity.max(axis=1)
     return final_proximity
 
@@ -71,37 +79,42 @@ def load_network(filename, gdf_bounds, radius):
     return network
 
 
-def get_all_info(network, gdf, proximity_mapping):
-    for sector in proximity_mapping.keys():
-        points = gdf.loc[gdf[sector] > 0]
+def get_all_info(network, gdf, amenities_mapping):
+    new_proximity_mapping = {}
+    for item in amenities_mapping:
+        sector = item["name"]
+        num_pois = 1  # Assuming you want to find the nearest one
+        points = gdf.loc[gdf['amenity'] == sector]
+        if points.empty:
+            continue
         network.set_pois(
             category=sector,
-            x_col=points.geometry.x,
-            y_col=points.geometry.y,
-            maxdist=WALK_RADIUS,
+            x_col=points.geometry.centroid.x,
+            y_col=points.geometry.centroid.y,
+            maxdist=item['radius'],
             maxitems=MAX_ESTABLISHMENTS,
         )
+        new_proximity_mapping[sector] = {
+            'radius': item['radius'],
+            'num_pois': num_pois
+        }
 
-    for sector in ACCESIBILITY_MAPPING:
-        points = gdf.loc[gdf[sector] > 0]
-        network.set(points["node_ids"], name=sector)
-
-    proximity = get_proximity(network, proximity_mapping, WALK_RADIUS, WALK_SPEED)
-    accessibility = get_accessibility(network, ACCESIBILITY_MAPPING, WALK_RADIUS)
-    gdf_final = accessibility.merge(
-        proximity, left_index=True, right_index=True, how="left"
-    )
-    return gdf_final
+    proximity = get_proximity(network, new_proximity_mapping)
+    return proximity
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Join establishments with lots")
-    parser.add_argument("bounds_file", type=str, help="The file with all the data")
-    parser.add_argument("landuse_file", type=str, help="The file with all the data")
+    parser = argparse.ArgumentParser(
+        description="Join establishments with lots")
+    parser.add_argument("bounds_file", type=str,
+                        help="The file with all the data")
+    parser.add_argument("landuse_file", type=str,
+                        help="The file with all the data")
     parser.add_argument(
         "establishments_file", type=str, help="The file with all the data"
     )
-    parser.add_argument("park_file", type=str, help="The file with all the data")
+    parser.add_argument("amenities_file", type=str,
+                        help="The file with all the data")
     parser.add_argument(
         "pedestrian_net_file", type=str, help="The file with all the data"
     )
@@ -116,73 +129,129 @@ def get_args():
 if __name__ == "__main__":
     args = get_args()
 
-    gdf_lots = gpd.read_file(args.landuse_file, crs="EPSG:4326")
-    gdf_bounds = gpd.read_file(args.bounds_file, crs="EPSG:4326")
-    gdf_establishments = gpd.read_file(args.establishments_file, crs="EPSG:4326")
-    gdf_establishments["codigo_act"] = gdf_establishments["codigo_act"].astype(str)
-    gdf_parks = gpd.read_file(args.park_file, crs="EPSG:4326")
-    gdf_parks = gdf_parks.loc[gdf_parks["park_ratio"] > 0.2]
+    gdf_lots = gpd.read_file(
+        args.landuse_file, engine="pyogrio").to_crs("EPSG:4326")
+    gdf_bounds = gpd.read_file(
+        args.bounds_file, engine="pyogrio").to_crs("EPSG:4326")
+    gdf_establishments = gpd.read_file(
+        args.establishments_file, engine="pyogrio").to_crs("EPSG:4326")
+    gdf_establishments["codigo_act"] = gdf_establishments["codigo_act"].astype(
+        str)
+    gdf_amenities = gpd.read_file(
+        args.amenities_file, engine="pyogrio").to_crs("EPSG:4326")
 
     gdfs_mapping = {
         "home": gdf_lots,
         "establishment": gdf_establishments,
-        "park": gdf_parks,
+        "amenity": gdf_amenities,
     }
 
-    for item in AMENITIES_MAPPING:
-        column = "proximity_" + item["column"]
-        current_gdf = gdfs_mapping[item["type"]]
-        current_gdf[column] = current_gdf.query(item["query"]).any(axis=1)
-        current_gdf[column] = current_gdf[column].fillna(False).astype(int)
-
     # TODO: Load pedestrian network from folder of project
-    pedestrian_network = load_network(args.pedestrian_net_file, gdf_bounds, WALK_RADIUS)
+    pedestrian_network = load_network(
+        args.pedestrian_net_file, gdf_bounds, WALK_RADIUS)
     pedestrian_network.precompute(WALK_RADIUS)
 
-    gdf_aggregate = gpd.GeoDataFrame()
-    for gdf in gdfs_mapping.values():
-        geometry = gpd.points_from_xy(gdf.geometry.centroid.x, gdf.geometry.centroid.y)
-        gdf = gpd.GeoDataFrame(gdf, crs="EPSG:4326", geometry=geometry)
-        gdf["node_ids"] = pedestrian_network.get_node_ids(
-            gdf.geometry.x, gdf.geometry.y
-        )
-        columns = [
-            "proximity_" + x["column"]
-            for x in AMENITIES_MAPPING
-            if "proximity_" + x["column"] in gdf.columns
-        ]
-        gdf = gdf[["node_ids", "geometry", *columns]]
-        gdf_aggregate = pd.concat([gdf_aggregate, gdf], ignore_index=True)
-    gdf_aggregate = gdf_aggregate.fillna(0)
-    gdf_aggregate.to_file(args.accessibility_points_file)
+    accessibility_scores = {}
 
-    df_accessibility = get_all_info(
-        pedestrian_network, gdf_aggregate, PROXIMITY_MAPPING
-    )
-    gdf_lots["node_ids"] = pedestrian_network.get_node_ids(
-        gdf_lots.geometry.centroid.x, gdf_lots.geometry.centroid.y
-    )
+    for item in AMENITIES_MAPPING:
+        from_gdf = gdfs_mapping[item["from"]]
+        if "query_from" in item:
+            from_gdf = from_gdf.query(item["query_from"])
+        to_gdf = gdfs_mapping[item["to"]]
+        if "query_to" in item:
+            to_gdf = to_gdf.query(item["query_to"])
+
+        if from_gdf.empty or to_gdf.empty:
+            continue
+
+        from_gdf['node_ids'] = pedestrian_network.get_node_ids(
+            from_gdf.geometry.centroid.x, from_gdf.geometry.centroid.y
+        )
+
+        to_gdf['node_ids'] = pedestrian_network.get_node_ids(
+            to_gdf.geometry.centroid.x, to_gdf.geometry.centroid.y
+        )
+        sector = item['name']
+        to_gdf = to_gdf[["node_ids", "geometry"]]
+        to_gdf['category'] = sector
+        amount = item.get("amount", 1)
+        importance = item['importance']
+        pedestrian_network.set_pois(
+            category=sector,
+            x_col=to_gdf.geometry.centroid.x,
+            y_col=to_gdf.geometry.centroid.y,
+            maxdist=item['radius'],
+            maxitems=MAX_ESTABLISHMENTS,
+        )
+        proximity = pedestrian_network.nearest_pois(
+            distance=item['radius'],
+            category=sector,
+            num_pois=amount,
+            include_poi_ids=False,
+        )
+        BETA = 0.01813
+        distance = proximity[amount]
+        minutes = distance / (WALK_SPEED * 60)
+        from_gdf['distance'] = from_gdf['node_ids'].map(distance)
+        from_gdf['minutes'] = from_gdf['node_ids'].map(minutes)
+        from_gdf['temp'] = (
+            from_gdf['POBTOT'] * importance /
+            np.exp(BETA * from_gdf['distance'])
+        )
+
+        # Sum the accessibility scores for each node_id
+        accessibility_scores = from_gdf.groupby(
+            'node_ids')['temp'].sum().to_dict()
+
+    accessibility_df = pd.DataFrame.from_dict(
+        accessibility_scores, orient='index', columns=['accessibility_score'])
     gdf_lots = gdf_lots.merge(
-        df_accessibility, left_on="node_ids", right_index=True, how="left"
+        accessibility_df, left_on="node_ids", right_index=True, how="left"
     )
-    gdf_lots = gdf_lots.drop(columns=["node_ids"])
+    gdf_lots.to_file(args.output_file, engine="pyogrio")
 
-    if args.view:
-        fig, ax = plt.subplots()
-        ax.set_axis_off()
-        gdf_lots.plot(ax=ax, column="minutes", cmap="Reds_r", legend=True, alpha=0.5)
-        gdf_establishments[gdf_establishments["proximity_salud"] > 0].plot(
-            ax=ax, color="cyan", markersize=6
-        )
-        gdf_establishments[gdf_establishments["proximity_educacion"] > 0].plot(
-            ax=ax, color="purple", markersize=6
-        )
-        gdf_establishments[gdf_establishments["proximity_servicios"] > 0].plot(
-            ax=ax, color="green", markersize=6
-        )
-        gdf_establishments[gdf_establishments["proximity_supermercado"] > 0].plot(
-            ax=ax, color="red", markersize=6
-        )
-        gdf_parks[gdf_parks["park_area"] < 0.5].plot(ax=ax, color="green", alpha=0.5)
-        plt.show()
-    gdf_lots.to_file(args.output_file)
+    gdf_lots.plot(column='accessibility_score',
+                  legend=True, scheme='quantiles', k=10)
+    plt.show()
+    exit()
+
+    # gdf_aggregate = gpd.GeoDataFrame()
+    # for item in AMENITIES_MAPPING:
+    #     item_gdf = gdfs_mapping[item["to"]]
+    #     item_gdf = item_gdf[item_gdf['amenity'] == item['name']]
+    #     if item_gdf.empty:
+    #         continue
+    #     item_gdf['node_ids'] = pedestrian_network.get_node_ids(
+    #  item_gdf.geometry.centroid.x, item_gdf.geometry.centroid.y
+    #   )
+    #    item_gdf = item_gdf[["node_ids", "geometry", "amenity"]]
+    #         gdf_aggregate = pd.concat([gdf_aggregate, item_gdf], ignore_index=True)
+    #    gdf_aggregate = gdf_aggregate.fillna(0)
+    #    gdf_aggregate.to_file(args.accessibility_points_file)
+
+    #    df_accessibility = get_all_info(
+    #    pedestrian_network, gdf_aggregate, AMENITIES_MAPPING
+    # )
+    #     gdf_lots["node_ids"] = pedestrian_network.get_node_ids(
+    # gdf_lots.geometry.centroid.x, gdf_lots.geometry.centroid.y
+    # )
+    #     gdf_lots = gdf_lots.merge(
+    #    df_accessibility, left_on = "node_ids", right_index = True, how = "left"
+    # )
+    #     gdf_lots = gdf_lots.drop(columns=["node_ids"])
+    #     scaler = MinMaxScaler()
+
+    #     gdf_lots['car_ratio'] = gdf_lots["VPH_AUTOM"] / gdf_lots["VIVTOT"]
+    #     gdf_lots['pob_no_car']= gdf_lots['POBTOT'] +
+    #     gdf_lots['num_workers']  # * (1 - gdf_lots['car_ratio'])
+
+    #     gdf_lots['accessibility_score'] = (1 - scaler.fit_transform(
+    #         gdf_lots[['accessibility']])) * scaler.fit_transform(gdf_lots[['pob_no_car']])
+
+    #     gdf_lots.to_file(args.output_file, engine="pyogrio")
+    #     if args.view:
+    #     fig, ax= plt.subplots()
+    #     ax.set_axis_off()
+    #     gdf_lots.plot(ax=ax, column="accessibility_score",
+    #                   cmap = "Reds", legend = True, alpha = 0.5, scheme ="quantiles", k=5)
+    #                   plt.show()
