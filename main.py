@@ -224,6 +224,8 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
             "VIVPAR_HAB": "first",
             "VIVPAR_DES": "first",
             "VPH_AUTOM": "first", 
+            "VPH_PC": "first", 
+            "VPH_TINACO": "first", 
             "PAFIL_IPRIV": "first", 
             #"GRAPROES": "first",
             
@@ -242,6 +244,8 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
  
             "P_60YMAS_F": "first",
             "P_60YMAS_M": "first",
+
+            "mean_slope": "first"
         })   
         
     inegi_data = inegi_data.fillna(0)
@@ -253,6 +257,8 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
             "VIVPAR_HAB": "sum",
             "VIVPAR_DES": "sum", # Multiplicar por 100 puntuaje_hogar_digno y dejar sin decimales escuela y seguro médico
             "VPH_AUTOM": "sum", # ---------- 
+            "VPH_PC": "sum", 
+            "VPH_TINACO": "sum", 
             "PAFIL_IPRIV": "sum",
             #"GRAPROES": "sum",
             "POBFEM": "sum",
@@ -331,6 +337,8 @@ async def get_info(predio: Annotated[list[str] | None, Query()] = None):
             "pob_por_cuarto": "mean",
             "puntuaje_hogar_digno": "mean",
             "GRAPROES": "mean",
+
+            "mean_slope": "mean"
         }
     )
     
@@ -399,14 +407,20 @@ async def poligon_layer(payload: Dict[Any, Any]):
     coordinates = payload.get("coordinates")
     layer = payload.get("layer")
 
-    polygon = Polygon(coordinates)
-    polygon_gdf = gpd.GeoDataFrame(geometry=[polygon], crs="EPSG:4326")
-
-    bbox = create_bbox(coordinates)
 
     lofsFile = get_file(f"data/_primavera/final/{layer}.fgb")
-    gdf = pyogrio.read_dataframe(lofsFile, bbox=bbox)
-    gdf = gdf[gdf.within(polygon_gdf.unary_union)]
+
+    if( coordinates ):
+        polygon = Polygon(coordinates)
+        polygon_gdf = gpd.GeoDataFrame(geometry=[polygon], crs="EPSG:4326")
+
+        bbox = create_bbox(coordinates)
+
+        gdf = pyogrio.read_dataframe(lofsFile, bbox=bbox)
+        gdf = gdf[gdf.within(polygon_gdf.unary_union)]
+    
+    else:
+        gdf = pyogrio.read_dataframe(lofsFile)
 
     filePath = f"./data/{layer}.fgb"
 
