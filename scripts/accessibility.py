@@ -81,10 +81,15 @@ def load_network(filename, gdf_bounds, radius):
 
 def get_all_info(network, gdf, amenities_mapping):
     new_proximity_mapping = {}
+
+    print( "AMENINTIES MAP" ,amenities_mapping )
+
     for item in amenities_mapping:
         sector = item["name"]
         num_pois = 1  # Assuming you want to find the nearest one
         points = gdf.loc[gdf['amenity'] == sector]
+
+        print( gdf.to_json())
         if points.empty:
             continue
         network.set_pois(
@@ -140,6 +145,9 @@ if __name__ == "__main__":
     gdf_amenities = gpd.read_file(
         args.amenities_file, engine="pyogrio").to_crs("EPSG:4326")
 
+    for item in gdf_amenities:
+        item = item.replace(" ", "_")
+
     gdfs_mapping = {
         "home": gdf_lots,
         "establishment": gdf_establishments,
@@ -152,9 +160,12 @@ if __name__ == "__main__":
     pedestrian_network.precompute(WALK_RADIUS)
 
     accessibility_scores = {}
+    gdf_aggregate = gpd.GeoDataFrame()
 
     for item in AMENITIES_MAPPING:
         from_gdf = gdfs_mapping[item["from"]]
+
+       
         if "query_from" in item:
             from_gdf = from_gdf.query(item["query_from"])
         to_gdf = gdfs_mapping[item["to"]]
@@ -171,6 +182,19 @@ if __name__ == "__main__":
         to_gdf['node_ids'] = pedestrian_network.get_node_ids(
             to_gdf.geometry.centroid.x, to_gdf.geometry.centroid.y
         )
+
+        item_gdf = to_gdf
+       
+        item_gdf['node_ids'] = pedestrian_network.get_node_ids(
+          item_gdf.geometry.centroid.x, item_gdf.geometry.centroid.y
+        )
+
+        item_gdf = item_gdf[["node_ids", "geometry", "amenity"]]
+
+        gdf_aggregate = pd.concat([gdf_aggregate, item_gdf], ignore_index=True)
+        gdf_aggregate = gdf_aggregate.fillna(0)
+        gdf_aggregate.to_file(args.accessibility_points_file)
+
         sector = item['name']
         to_gdf = to_gdf[["node_ids", "geometry"]]
         to_gdf['category'] = sector

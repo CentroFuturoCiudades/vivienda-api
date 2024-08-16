@@ -42,50 +42,6 @@ def get_blob_url(endpoint: str) -> str:
     return f"{BLOB_URL}/{FOLDER}/{endpoint}?{access_token}"
 
 
-def calculate_metrics(metric: str, condition: str, proximity_mapping: Dict[Any, Any]):
-    if condition:
-        df_lots = get_all(
-            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {
-                condition}""",
-        )
-    else:
-        df_lots = get_all(
-            f"""SELECT ID, ({
-                metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots""",
-        )
-    df_lots["ID"] = df_lots["ID"].astype(int).astype(str)
-    df_lots["value"] = df_lots["value"].fillna(0)
-    df_lots = df_lots.fillna(0)
-
-    if metric == "minutes":
-        response = requests.get(get_blob_url("pedestrian_network.hd5"))
-        response.raise_for_status()
-        with tempfile.NamedTemporaryFile(delete=True) as tmp_file:
-            # Write the content to the temporary file
-            tmp_file.write(response.content)
-            tmp_file.flush()
-            pedestrian_network = pdna.Network.from_hdf5(tmp_file.name)
-            pedestrian_network.precompute(WALK_RADIUS)
-        df_lots["node_ids"] = pedestrian_network.get_node_ids(
-            df_lots.longitud, df_lots.latitud
-        )
-
-        gdf_aggregate = gpd.read_file(
-            get_blob_url("accessibility_points.fgb"),
-            crs="EPSG:4326",
-        )
-
-        df_accessibility = get_all_info(
-            pedestrian_network, gdf_aggregate, proximity_mapping
-        )
-        df_lots = df_lots.merge(
-            df_accessibility, left_on="node_ids", right_index=True, how="left"
-        )
-        df_lots = df_lots[["ID", "minutes"]].rename(
-            columns={"minutes": "value"})
-    return df_lots.to_dict(orient="records")
-
-
 ORIGINS = [
     "*",
 ]
@@ -204,6 +160,7 @@ async def custom_query(payload: Dict[Any, Any]):
     return df_lots.to_dict(orient="records")
 
 
+#Calculate multiple metrics for the selected area
 @app.get("/predios/")
 async def get_info(predio: Annotated[list[str] | None, Query()] = None):
     query = "SELECT * FROM lots"
@@ -442,22 +399,6 @@ async def getPoints():
     gdf = pyogrio.read_dataframe(file)
 
     return gdf.to_json()
-
-
-@app.get("/generate-metrics")
-async def generateMetrics():
-    data = calculate_metrics(
-        "minutes",
-        "",
-        {
-            "proximity_educacion": 1,
-            "proximity_salud": 2,
-            "proximity_servicios": 5,
-            "proximity_small_park": 2,
-            "proximity_supermercado": 1,
-        },
-    )
-    return data
 
 
 @app.get("/test")
