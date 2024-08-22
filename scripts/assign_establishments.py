@@ -66,7 +66,8 @@ def assign_by_buffer(
             lots_in_block2.to_crs("EPSG:32614").plot(ax=ax, color="green")
             establishments_in_block.plot(ax=ax, color="red")
             plt.show()
-            print(f"Block {block_id} has {len(establishments_in_block)} establishments")
+            print(f"Block {block_id} has {
+                  len(establishments_in_block)} establishments")
             joined_in_block = gpd.sjoin(
                 establishments_in_block, lots_in_block, how="left"
             )
@@ -114,12 +115,15 @@ def assign_by_proximity(
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Join establishments with lots")
-    parser.add_argument("population_file", type=str, help="The file with all the data")
+    parser = argparse.ArgumentParser(
+        description="Join establishments with lots")
+    parser.add_argument("population_file", type=str,
+                        help="The file with all the data")
     parser.add_argument(
         "establishments_file", type=str, help="The file with all the data"
     )
-    parser.add_argument("output_file", type=str, help="The file with all the data")
+    parser.add_argument("output_file", type=str,
+                        help="The file with all the data")
     parser.add_argument("-v", "--view", action="store_true")
     return parser.parse_args()
 
@@ -138,7 +142,6 @@ if __name__ == "__main__":
     gdf_denue["codigo_act"] = gdf_denue["codigo_act"].astype(str)
     gdf_denue["amenity"] = None
     for item in DENUE_TO_AMENITY_MAPPING:
-        print(item)
         gdf_denue.loc[gdf_denue.eval(item["query"]), "amenity"] = item["name"]
     gdf_denue = gdf_denue.dropna(subset=["amenity"])
     gdf_denue = gdf_denue[

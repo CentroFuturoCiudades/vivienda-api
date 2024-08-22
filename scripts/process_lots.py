@@ -53,8 +53,9 @@ def process_blocks(
     df = df[["CVEGEO", *KEEP_COLUMNS]].set_index("CVEGEO")
     df = df.apply(pd.to_numeric, errors="coerce").fillna(0)
     gdf_lots = gdf_lots.merge(df, on="CVEGEO", how="inner")
-    gdf_lots['P_25A59_F'] = gdf_lots['POBTOT'] - gdf_lots['P_0A2_F'] - gdf_lots['P_3A5_F'] - gdf_lots['P_6A11_F'] - gdf_lots['P_12A14_F'] - gdf_lots['P_15A17_F'] - gdf_lots['P_18A24_F'] - gdf_lots['P_60YMAS_F']
-    gdf_lots['P_25A59_M'] = gdf_lots['POBTOT'] - gdf_lots['P_0A2_M'] - gdf_lots['P_3A5_M'] - gdf_lots['P_6A11_M'] - gdf_lots['P_12A14_M'] - gdf_lots['P_15A17_M'] - gdf_lots['P_18A24_M'] - gdf_lots['P_60YMAS_M']
+    gdf_lots['P_25A59_F'] = gdf_lots['POBFEM'] - gdf_lots['P_0A2_F'] - gdf_lots['P_3A5_F'] - gdf_lots['P_6A11_F'] - gdf_lots['P_12A14_F'] - gdf_lots['P_15A17_F'] - gdf_lots['P_18A24_F'] - gdf_lots['P_60YMAS_F']
+    gdf_lots['P_25A59_M'] = gdf_lots['POBMAS'] - gdf_lots['P_0A2_M'] - gdf_lots['P_3A5_M'] - gdf_lots['P_6A11_M'] - gdf_lots['P_12A14_M'] - gdf_lots['P_15A17_M'] - gdf_lots['P_18A24_M'] - gdf_lots['P_60YMAS_M']
+    gdf_lots['P_25A59'] = gdf_lots['POBTOT'] - gdf_lots['P_0A2'] - gdf_lots['P_3A5'] - gdf_lots['P_6A11'] - gdf_lots['P_12A14'] - gdf_lots['P_15A17'] - gdf_lots['P_18A24'] - gdf_lots['P_60YMAS']
     total_score = sum(MAPPING_SCORE_VARS.values())
     gdf_lots['puntuaje_hogar_digno'] = 0
     for key, value in MAPPING_SCORE_VARS.items():

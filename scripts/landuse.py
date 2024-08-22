@@ -250,6 +250,7 @@ if __name__ == "__main__":
     for gdf, item in zip(gdfs, GDFS_MAPPING):
         column_area = f'{item["name"]}_area'
         column_ratio = f'{item["name"]}_ratio'
+        gdf = gdf.dissolve(by="ID")
         gdf[column_area] = gdf.to_crs("EPSG:6933").area / 10_000
         gdf[column_ratio] = gdf[column_area] / gdf["lot_area"]
         gdf = gdf.reset_index()

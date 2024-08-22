@@ -51,7 +51,7 @@ time poetry run python3 -m scripts.assign_establishments "$population_file" "$es
 echo "Assigning landuse"
 time poetry run python3 -m scripts.landuse "$bounds_file" "$lots_establishments_file" "$buildings_file" "$establishments_file" "$amenities_file" "$vegetation_file" "$landuse_other_file" "$landuse_file" $VERBOSE_OPTION
 echo "Calculating accessibility"
-time python3 -m scripts.accessibility "$bounds_file" "$landuse_file" "$establishments_file" "$landuse_park_file" "$pedestrian_network_file" "$accessibility_points_file" "$accessibility_file" $VERBOSE_OPTION
+time poetry run python3 -m scripts.accessibility "$bounds_file" "$landuse_file" "$establishments_file" "$landuse_park_file" "$pedestrian_network_file" "$accessibility_points_file" "$accessibility_file" $VERBOSE_OPTION
 echo "Calculating utilization"
 time python3 -m scripts.utilization "$bounds_file" "$accessibility_file" "$lots_file" "$zoning_regulations_file" "$final_file" $VERBOSE_OPTION
 echo "Populating database"

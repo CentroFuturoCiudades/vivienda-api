@@ -5,7 +5,7 @@ import json
 from urllib.parse import urlparse
 
 TTL = 3600 * 15 * 24  # seconds
-BASE_LOCATION = "./temp"
+BASE_LOCATION = os.getenv("BASE_FILE_LOCATION", "./temp")
 TIMESTAMP_FILE = f"{BASE_LOCATION}/file_timestamps.json"
 
 def load_timestamps():
