@@ -26,7 +26,6 @@ from scripts.accessibility import get_all_info, load_network
 from utils.files import get_file
 from utils.utils import get_all
 import time
-import redis.asyncio as redis
 import pickle
 from shapely.geometry import box
 
