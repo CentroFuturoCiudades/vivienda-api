@@ -22,12 +22,16 @@ from shapely import Point, Polygon
 from shapely.geometry import box
 from sqlalchemy import create_engine
 
-from scripts.accessibility import get_all_info, load_network
+from scripts.accessibility import calculate_accessibility
 from utils.files import get_file
 from utils.utils import get_all
 import time
 import pickle
 from shapely.geometry import box
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from utils.constants import AMENITIES_MAPPING
+from functools import lru_cache
 
 app = FastAPI()
 FOLDER = "primavera"
@@ -54,42 +58,53 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def read_gdf_sync(filepath, bbox=None):
+    return gpd.read_file(filepath, bbox=bbox, engine="pyogrio")
 
-@app.get("/project/{project_name}")
-async def change_project(project_name: str):
-    global FOLDER
-    FOLDER = PROJECTS_MAPPING.get(project_name)
-    return {"success": True}
-
+async def read_gdf_async(filepath, bbox=None):
+    loop = asyncio.get_running_loop()
+    with ThreadPoolExecutor() as pool:
+        result = await loop.run_in_executor(pool, read_gdf_sync, filepath, bbox)
+    return result
 
 @app.get("/coords")
-def get_coordinates():
-    gdf_bounds = gpd.read_file(
-        get_blob_url("bounds.fgb"),
-        crs="EPSG:4326",
-    )
+async def get_coordinates():
+    gdf_bounds = await read_gdf_async(get_file("bounds.fgb"), None)
     geom = gdf_bounds.unary_union
     return {"latitud": geom.centroid.y, "longitud": geom.centroid.x}
 
+
+@lru_cache()
+def load_network():
+    response = requests.get(get_blob_url("pedestrian_network.hd5"))
+    response.raise_for_status()
+    temp_dir = os.getenv("BASE_FILE_LOCATION", "./temp")
+    os.makedirs(temp_dir, exist_ok=True)
+    with tempfile.NamedTemporaryFile(delete=True, dir=temp_dir) as tmp_file:
+        # Write the content to the temporary file
+        tmp_file.write(response.content)
+        tmp_file.flush()
+        pedestrian_network = pdna.Network.from_hdf5(tmp_file.name)
+        pedestrian_network.precompute(WALK_RADIUS)
+        return pedestrian_network
 
 @app.post("/query")
 async def custom_query(payload: Dict[Any, Any]):
     metric = payload.get("metric")
     condition = payload.get("condition")
     coordinates = payload.get("coordinates")
+    proximity_mapping = payload.get("accessibility_info")
+    layer = payload.get("layer", "blocks") + ".fgb"
     # get IDs of lots within the coordinates
     if coordinates:
         # get bbox from coordinates
-        polygon = Polygon(coordinates)
-        polygon_gdf = gpd.GeoDataFrame(geometry=[polygon], crs="EPSG:4326")
         bbox = create_bbox(coordinates)
-        gdf = pyogrio.read_dataframe(
-            get_file(get_blob_url("lots.fgb")), bbox=bbox
+        polygon_gdf = gpd.GeoDataFrame(
+            geometry=[Polygon(coordinates)], crs="EPSG:4326"
         )
-        gdf = gdf[gdf.within(polygon_gdf.unary_union)]
-        gdf = gdf[["ID"]]
+        gdf = await read_gdf_async(get_file(get_blob_url(layer)), bbox)
+        gdf = gdf[gdf.intersects(polygon_gdf.unary_union)]
         condition = f"ID IN ({', '.join(gdf.ID.astype(str).tolist())})"
-    proximity_mapping = payload.get("accessibility_info")
     if condition:
         df_lots = get_all(
             f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {
@@ -105,34 +120,22 @@ async def custom_query(payload: Dict[Any, Any]):
     df_lots = df_lots.fillna(0)
 
     if metric == "minutes":
-        response = requests.get(get_blob_url("pedestrian_network.hd5"))
-        response.raise_for_status()
-
-        temp_dir = os.getenv("BASE_FILE_LOCATION", "./temp")
-        os.makedirs(temp_dir, exist_ok=True)
-        with tempfile.NamedTemporaryFile(delete=True, dir=temp_dir) as tmp_file:
-            # Write the content to the temporary file
-            tmp_file.write(response.content)
-            tmp_file.flush()
-            pedestrian_network = pdna.Network.from_hdf5(tmp_file.name)
-            pedestrian_network.precompute(WALK_RADIUS)
+        pedestrian_network = load_network()
         df_lots["node_ids"] = pedestrian_network.get_node_ids(
             df_lots.longitud, df_lots.latitud
         )
 
         file = get_file(get_blob_url("accessibility_points.fgb"))
-
-        gdf_aggregate = pyogrio.read_dataframe(
+        gdf_amenities = await read_gdf_async(
             file
         )
 
-        df_accessibility = get_all_info(
-            pedestrian_network, gdf_aggregate, proximity_mapping
-        )
+        mapping = proximity_mapping if proximity_mapping else [{**x, "radius": 1609.34*2, "importance": 1} for x in AMENITIES_MAPPING]
+        df_accessibility = calculate_accessibility(pedestrian_network, gdf_amenities, mapping)
         df_lots = df_lots.merge(
             df_accessibility, left_on="node_ids", right_index=True, how="left"
         )
-        df_lots = df_lots[["ID", "minutes"]].rename(
+        df_lots = df_lots[["ID", "minutes", "latitud", "longitud", "num_floors", "max_height", "potential_new_units"]].rename(
             columns={"minutes": "value"})
     return df_lots.to_dict(orient="records")
 
@@ -144,7 +147,7 @@ async def get_info(payload: Dict[Any, Any]):
     base_query = "SELECT * FROM lots"
 
     results = []
-    chunk_size = 500
+    chunk_size = 1000
 
     if lots:
         for i in range(0, len(lots), chunk_size):
@@ -229,11 +232,10 @@ async def get_info(payload: Dict[Any, Any]):
         
     inegi_data = inegi_data.fillna(0)
     print("Datos después de la segunda agregación y fillna(0):", inegi_data)
+    print(df['accessibility_score'].describe())
     
     df["car_ratio"] = df["VPH_AUTOM"] / df["VIVPAR_HAB"]
     df = df.replace([np.inf, -np.inf], np.nan).fillna(0)
-    print("Datos después de calcular car_ratio y reemplazar inf:", df)
-    print(df["car_ratio"])
     
     df['PEA'] = df['PEA'].fillna(0)
     df['PEA'] = pd.to_numeric(df['PEA'], errors='coerce').fillna(0).astype(int)
@@ -279,13 +281,12 @@ async def get_info(payload: Dict[Any, Any]):
             "pob_por_cuarto": "mean",
             "puntuaje_hogar_digno": "mean",
             "GRAPROES": "mean",
+            "accessibility_score": "mean",
             # "mean_slope": "mean"
         }
     )
     
     df = df.fillna(0)
-    
-    print(df)
     
     return {**df.to_dict(), **inegi_data.to_dict()}
 
@@ -314,8 +315,8 @@ async def get_polygon_segment(payload: Dict[Any, Any]):
     polygon_gdf = gpd.GeoDataFrame(
         geometry=[Polygon(coordinates)], crs="EPSG:4326"
     )
-    gdf = pyogrio.read_dataframe(layerFile, bbox=bbox)
-    gdf = gdf[gdf.within(polygon_gdf.unary_union)]
+    gdf = await read_gdf_async(layerFile, bbox)
+    gdf = gdf[gdf.intersects(polygon_gdf.unary_union)]
 
     with io.BytesIO() as output:
         pyogrio.write_dataframe(gdf, output, driver="FlatGeobuf")

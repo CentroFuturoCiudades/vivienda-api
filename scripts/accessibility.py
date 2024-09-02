@@ -17,6 +17,8 @@ from utils.constants import (
     WALK_RADIUS,
     WALK_SPEED,
 )
+from utils.utils import normalize
+from functools import lru_cache
 
 BETA_GRAVITY = 0.001
 
@@ -44,21 +46,9 @@ def get_proximity(network, categories_mapping):
         for item in AMENITIES_MAPPING
     }
     final_proximity['accessibility'] = final_proximity.apply(
-        lambda x: sum([x[category] * mapping_importance[category] for category in categories_mapping.keys()]), axis=1)
+        lambda x: sum([x[category] * categories_mapping[category]['importance'] for category in categories_mapping.keys()]), axis=1)
     final_proximity["minutes"] = final_proximity.max(axis=1)
     return final_proximity
-
-
-def get_accessibility(network, categories, distance, decay="linear"):
-    results = []
-    for category in categories:
-        accessibility = network.aggregate(
-            distance, type="sum", decay=decay, name=category
-        )
-        results.append(accessibility)
-    final_accessibility = pd.concat(results, axis=1)
-    final_accessibility["accessibility"] = final_accessibility.sum(axis=1)
-    return final_accessibility[["accessibility"]]
 
 
 def load_network(filename, gdf_bounds, radius):
@@ -81,17 +71,14 @@ def load_network(filename, gdf_bounds, radius):
     return network
 
 
-def get_all_info(network, gdf, amenities_mapping):
+def calculate_accessibility(network, gdf, amenities_mapping):
     new_proximity_mapping = {}
-
-    print("AMENINTIES MAP", amenities_mapping)
 
     for item in amenities_mapping:
         sector = item["name"]
         num_pois = 1  # Assuming you want to find the nearest one
         points = gdf.loc[gdf['amenity'] == sector]
 
-        print(gdf.to_json())
         if points.empty:
             continue
         network.set_pois(
@@ -99,13 +86,13 @@ def get_all_info(network, gdf, amenities_mapping):
             x_col=points.geometry.centroid.x,
             y_col=points.geometry.centroid.y,
             maxdist=item['radius'],
-            maxitems=MAX_ESTABLISHMENTS,
+            maxitems=num_pois,
         )
         new_proximity_mapping[sector] = {
             'radius': item['radius'],
-            'num_pois': num_pois
+            'num_pois': num_pois,
+            'importance': item['importance'],
         }
-
     proximity = get_proximity(network, new_proximity_mapping)
     return proximity
 
@@ -184,7 +171,7 @@ if __name__ == "__main__":
         )
 
         item_gdf = to_gdf
-        
+
         item_gdf['node_ids'] = pedestrian_network.get_node_ids(
             item_gdf.geometry.centroid.x, item_gdf.geometry.centroid.y
         )
@@ -219,7 +206,8 @@ if __name__ == "__main__":
             within_radius = from_gdf[f'distance_{i}'] < item['radius']
             from_gdf[f'gravity_temp_{i}'] = np.where(
                 within_radius,
-                from_gdf["POBTOT"] * importance / np.exp(BETA_GRAVITY * from_gdf[f'distance_{i}']),
+                from_gdf["POBTOT"] * importance /
+                np.exp(BETA_GRAVITY * from_gdf[f'distance_{i}']),
                 0
             )
         distance = proximity[amount]
@@ -227,19 +215,24 @@ if __name__ == "__main__":
         from_gdf['distance'] = from_gdf['node_ids'].map(distance)
         from_gdf['minutes'] = from_gdf['node_ids'].map(minutes)
 
-        from_gdf['gravity_score'] = from_gdf[[f'gravity_temp_{i}' for i in range(1, 21)]].sum(axis=1)
-        accessibility_scores.update(from_gdf.groupby('node_ids')['gravity_score'].sum().to_dict())
+        from_gdf['gravity_score'] = from_gdf[[
+            f'gravity_temp_{i}' for i in range(1, 21)]].sum(axis=1)
+        accessibility_scores.update(from_gdf.groupby(
+            'node_ids')['gravity_score'].sum().to_dict())
 
     accessibility_df = pd.DataFrame.from_dict(
         accessibility_scores, orient='index', columns=['accessibility_score'])
     gdf_lots = gdf_lots.merge(
         accessibility_df, left_on="node_ids", right_index=True, how="left"
     )
+    gdf_lots['accessibility_score'] = normalize(gdf_lots['accessibility_score'])
+    print(gdf_lots['accessibility_score'].describe())
     gdf_lots.to_file(args.output_file, engine="pyogrio")
 
     fig, ax = plt.subplots()
     ax.set_axis_off()
-    gdf_lots.plot(ax=ax, column='accessibility_score', scheme='quantiles', k=10, cmap='Reds')
+    gdf_lots.plot(ax=ax, column='accessibility_score',
+                  scheme='quantiles', k=10, cmap='Reds')
     new_gdf_amenities = gpd.GeoDataFrame()
     for x in AMENITIES_MAPPING:
         tmp = gdf_amenities.query(x["query_to"])

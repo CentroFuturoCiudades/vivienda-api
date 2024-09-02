@@ -18,6 +18,13 @@ def gather_data(state_code: int) -> pd.DataFrame:
         zip_ref.extractall("temp_data")
     df = pd.read_csv(CSV_PATH_MZA_2020.format(state_code))
     shutil.rmtree("temp_data")
+    df = df.loc[
+        (df["ENTIDAD"].astype(str).str.zfill(2) != "00")
+        & (df["MUN"].astype(str).str.zfill(3) != "000")
+        & (df["LOC"].astype(str).str.zfill(4) != "0000")
+        & (df["AGEB"].astype(str).str.zfill(4) != "0000")
+        & (df["MZA"].astype(str).str.zfill(3) != "000")
+    ]
     df["CVEGEO"] = (
         df["ENTIDAD"].astype(str).str.zfill(2)
         + df["MUN"].astype(str).str.zfill(3)
@@ -34,13 +41,23 @@ def process_blocks(
     gdf_lots: gpd.GeoDataFrame,
     state_code: int,
 ) -> gpd.GeoDataFrame:
-    # gdf_lots = gdf_lots.dropna(subset=['CLAVE_LOTE'])
+
     gdf_blocks = gdf_blocks.drop_duplicates(subset="CVEGEO")
     gdf_blocks = gdf_blocks[["CVEGEO", "geometry"]]
     gdf_blocks["block_area"] = gdf_blocks.to_crs("EPSG:6933").area / 10_000
     gdf_blocks = gpd.sjoin(gdf_blocks, gdf_bounds, predicate="intersects").drop(
         columns=["index_right"]
     )
+
+    ids_to_remove = [
+        '207583',
+        '0',
+        '477',
+    ]
+    gdf_lots = gdf_lots[~gdf_lots['ID'].isin(ids_to_remove)]
+    gdf_lots = gdf_lots[gdf_lots['geometry'].is_valid]
+    gdf_lots = gdf_lots.dissolve(by='ID', aggfunc='first')
+    
     gdf_lots = gpd.sjoin(gdf_lots, gdf_blocks, how="left", predicate="intersects")
     gdf_lots = (
         gdf_lots.groupby("ID")
@@ -48,6 +65,12 @@ def process_blocks(
         .reset_index()
     )
     gdf_lots = gpd.GeoDataFrame(gdf_lots, crs="EPSG:4326")
+    rest_gdf_blocks = gdf_blocks[~gdf_blocks["CVEGEO"].isin(gdf_lots["CVEGEO"])]
+    _gdf_lots = gdf_lots[~gdf_lots["geometry"].intersects(rest_gdf_blocks.unary_union)]
+    gdf_lots = gpd.GeoDataFrame(
+        pd.concat([_gdf_lots, rest_gdf_blocks], ignore_index=True)
+    )
+    gdf_lots['ID'] = gdf_lots['ID'].fillna(method='ffill')
 
     df = gather_data(state_code)
     df = df[["CVEGEO", *KEEP_COLUMNS]].set_index("CVEGEO")

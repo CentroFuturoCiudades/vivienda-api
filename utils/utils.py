@@ -49,7 +49,6 @@ def get_engine():
 def get_all(query):
     engine = get_engine()
     df = pd.read_sql(query, engine)
-    print(df)
     return df
 
 
