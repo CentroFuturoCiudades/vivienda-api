@@ -41,6 +41,11 @@ WALK_RADIUS = 1609.34
 
 BLOB_URL = "https://reimaginaurbanostorage.blob.core.windows.net"
 
+# hello world
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
 
 def get_blob_url(file_name: str) -> str:
     access_token = os.getenv("BLOB_TOKEN")
