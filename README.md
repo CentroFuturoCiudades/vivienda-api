@@ -94,3 +94,9 @@ $ APP_ENV=local && poetry run uvicorn main:app --reload
 # Para utilizar la base de datos en la nube
 $ APP_ENV=dev && poetry run uvicorn main:app --reload
 ```
+
+# Generate utility files
+1. Run
+```sh
+sh ./run_all.sh data/primavera 25 "La Primavera" -v  
+``` 

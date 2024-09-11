@@ -14,6 +14,7 @@ blocks_file="$FOLDER/original/blocks.geojson"
 lots_file="$FOLDER/original/lots.fgb"
 zoning_regulations_file="$FOLDER/original/zoning_regulations.json"
 amenities_file="$FOLDER/original/EQUIPAMIENTOS/EQUIPAMIENTOS.shp"
+altitude_tif_file="$FOLDER/original/Sinaloa_r15m.tif"
 
 # Gather
 vegetation_file="$FOLDER/final/vegetation.fgb"
@@ -56,3 +57,5 @@ echo "Calculating utilization"
 time python3 -m scripts.utilization "$bounds_file" "$accessibility_file" "$lots_file" "$zoning_regulations_file" "$final_file" $VERBOSE_OPTION
 echo "Populating database"
 time poetry run python3 -m scripts.populate_db "$final_file" "$db_file" "$REGION" $VERBOSE_OPTION
+echo "Calculate lots slope"
+time poetry run python3 -m scripts "$bounds_file" "$altitude_tif_file" "$lots_file" "$db_file"
