@@ -201,22 +201,28 @@ if __name__ == "__main__":
             include_poi_ids=False,
         )
 
+        gravity_temps = []
         for i in range(1, 21):
-            from_gdf[f'distance_{i}'] = from_gdf['node_ids'].map(proximity[i])
-            within_radius = from_gdf[f'distance_{i}'] < item['radius']
-            from_gdf[f'gravity_temp_{i}'] = np.where(
+            # Calculate distance and gravity_temp without adding them to from_gdf
+            distance_i = from_gdf['node_ids'].map(proximity[i])
+            within_radius = distance_i < item['radius']
+            gravity_temp_i = np.where(
                 within_radius,
-                from_gdf["POBTOT"] * importance /
-                np.exp(BETA_GRAVITY * from_gdf[f'distance_{i}']),
+                from_gdf["POBTOT"] * importance / np.exp(BETA_GRAVITY * distance_i),
                 0
             )
+            gravity_temps.append(gravity_temp_i)
+
+        # Calculate the final distance and minutes without adding them to from_gdf
         distance = proximity[amount]
         minutes = distance / (WALK_SPEED * 60)
         from_gdf['distance'] = from_gdf['node_ids'].map(distance)
         from_gdf['minutes'] = from_gdf['node_ids'].map(minutes)
 
-        from_gdf['gravity_score'] = from_gdf[[
-            f'gravity_temp_{i}' for i in range(1, 21)]].sum(axis=1)
+        # Sum the gravity_temp values across all i and add it to from_gdf as gravity_score
+        from_gdf['gravity_score'] = np.sum(gravity_temps, axis=0)
+
+        # Update accessibility_scores
         accessibility_scores.update(from_gdf.groupby(
             'node_ids')['gravity_score'].sum().to_dict())
 
@@ -225,8 +231,9 @@ if __name__ == "__main__":
     gdf_lots = gdf_lots.merge(
         accessibility_df, left_on="node_ids", right_index=True, how="left"
     )
+    gdf_lots = gdf_lots.drop(columns=["node_ids"])
+    gdf_lots['accessibility_score'] = np.log1p(gdf_lots['accessibility_score'])
     gdf_lots['accessibility_score'] = normalize(gdf_lots['accessibility_score'])
-    print(gdf_lots['accessibility_score'].describe())
     gdf_lots.to_file(args.output_file, engine="pyogrio")
 
     fig, ax = plt.subplots()

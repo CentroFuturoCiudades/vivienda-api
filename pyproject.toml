@@ -31,6 +31,8 @@ scipy = "^1.14.0"
 mapclassify = "^2.8.0"
 
 gdal = { version = "^3.9.1", optional = true }
+azure-identity = "^1.17.1"
+psycopg2 = "^2.9.9"
 
 [tool.poetry.extras]
 scripts = ["gdal"]

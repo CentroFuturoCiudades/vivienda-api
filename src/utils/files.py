@@ -40,6 +40,11 @@ def get_file(url):
     print("File downloaded")
     return file_path
 
+BLOB_URL = "https://reimaginaurbanostorage.blob.core.windows.net"
+def get_blob_url(file_name: str) -> str:
+    access_token = os.getenv("BLOB_TOKEN")
+    return f"{BLOB_URL}/primavera/{file_name}?{access_token}"
+
 def download_file(url):
     os.makedirs(BASE_LOCATION, exist_ok=True)
 

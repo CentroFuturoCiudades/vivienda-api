@@ -9,6 +9,7 @@ import pandas as pd
 import requests
 
 from utils.constants import CSV_PATH_MZA_2020, KEEP_COLUMNS, URL_MZA_2020, MAPPING_SCORE_VARS
+from utils.utils import normalize
 
 
 def gather_data(state_code: int) -> pd.DataFrame:
@@ -84,6 +85,7 @@ def process_blocks(
     for key, value in MAPPING_SCORE_VARS.items():
         gdf_lots['puntuaje_hogar_digno'] += gdf_lots[key] * value
         gdf_lots['puntuaje_hogar_digno'] = gdf_lots['puntuaje_hogar_digno'] / (gdf_lots['TVIVPARHAB'] * total_score)
+    gdf_lots['puntuaje_hogar_digno'] = normalize(gdf_lots['puntuaje_hogar_digno'])
 
     gdf_lots['total_cuartos'] = gdf_lots['VPH_1CUART'] + (gdf_lots['VPH_2CUART'] * 2) + (gdf_lots['VPH_3YMASC'] * 3)
     gdf_lots['total_cuartos'] = gdf_lots['total_cuartos'].fillna(0)

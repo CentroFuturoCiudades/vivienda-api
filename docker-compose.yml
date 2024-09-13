@@ -1,0 +1,65 @@
+services:
+  reimagina_urbano_db:
+    image: postgres
+    container_name: reimagina_urbano_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  reimagina_urbano_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: reimagina_urbano_app
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: reimagina_urbano_db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+    depends_on:
+      reimagina_urbano_db:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+    command: ["poetry", "run", "gunicorn", "src.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+
+  
+  reimagina_urbano_db_init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: reimagina_urbano_db_init
+    depends_on:
+      reimagina_urbano_db:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: reimagina_urbano_db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./scripts:/app/scripts
+      - ./data:/data
+    entrypoint: ["poetry", "run", "python", "-m", "src.scripts.populate_db", "/data/_primavera/final/lots_complete.fgb", "/data/_primavera/final/predios.db", "25"]
+    restart: "no"
+volumes:
+  pgdata:

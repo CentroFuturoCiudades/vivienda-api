@@ -1,0 +1,10 @@
+# .dockerignore
+
+# Exclude the data directory
+data/
+
+# Optionally exclude other large or unnecessary files/directories
+*.log
+__pycache__/
+.env
+*.pyc

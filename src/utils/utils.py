@@ -13,6 +13,8 @@ from shapely.geometry import box
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from sqlalchemy import create_engine
+import urllib.parse
+from src.utils.files import get_file, get_blob_url
 
 APP_ENV = os.getenv('APP_ENV', 'local')
 load_dotenv(f'.env.{APP_ENV}')
@@ -33,18 +35,14 @@ BLOB_URL = "https://reimaginaurbanostorage.blob.core.windows.net"
 
 @lru_cache()
 def get_engine():
-    if APP_ENV == "local":
-        db_path = os.getenv("LOCAL_DB_PATH")
-        print(db_path)
-        return create_engine(db_path)
-    else:
-        driver = os.getenv("SQL_DRIVER")
-        server = os.getenv("SQL_SERVER")
-        database = os.getenv("SQL_DATABASE")
-        username = os.getenv("SQL_USERNAME")
-        password = os.getenv("SQL_PASSWORD")
-        connection_string = f"DRIVER={driver};SERVER=tcp:{server},1433;DATABASE={database};UID={username};PWD={password};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-        return create_engine(f"mssql+pyodbc:///?odbc_connect={connection_string}")
+    user = os.getenv("POSTGRES_USER")
+    password = os.getenv("POSTGRES_PASSWORD")
+    host = os.getenv("POSTGRES_HOST")
+    port = os.getenv("POSTGRES_PORT")
+    db = os.getenv("POSTGRES_DB")
+
+    connection_string = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
+    return create_engine(connection_string)
 
 def get_all(query):
     engine = get_engine()

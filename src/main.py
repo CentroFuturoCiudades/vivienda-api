@@ -23,7 +23,7 @@ from shapely.geometry import box
 from sqlalchemy import create_engine
 
 from src.scripts.accessibility import calculate_accessibility
-from src.utils.files import get_file
+from src.utils.files import get_file, get_blob_url
 from src.utils.utils import get_all
 import time
 import pickle
@@ -32,14 +32,12 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from src.utils.constants import AMENITIES_MAPPING
 from functools import lru_cache
+import os
 
 app = FastAPI()
-FOLDER = "primavera"
 PROJECTS_MAPPING = {"distritotec": "distritotec", "primavera": "primavera"}
 WALK_RADIUS = 1609.34
 
-
-BLOB_URL = "https://reimaginaurbanostorage.blob.core.windows.net"
 
 # hello world
 @app.get("/")
@@ -47,17 +45,13 @@ async def root():
     return {"message": "Hello World"}
 
 
-def get_blob_url(file_name: str) -> str:
-    access_token = os.getenv("BLOB_TOKEN")
-    return f"{BLOB_URL}/{FOLDER}/{file_name}?{access_token}"
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
 
-
-ORIGINS = [
-    "*",
-]
+# Split the origins by comma and remove any surrounding whitespace
+allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ORIGINS,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -74,7 +68,7 @@ async def read_gdf_async(filepath, bbox=None):
 
 @app.get("/coords")
 async def get_coordinates():
-    gdf_bounds = await read_gdf_async(get_file("bounds.fgb"), None)
+    gdf_bounds = await read_gdf_async(get_file(get_blob_url("bounds.fgb")), None)
     geom = gdf_bounds.unary_union
     return {"latitud": geom.centroid.y, "longitud": geom.centroid.x}
 
@@ -109,18 +103,18 @@ async def custom_query(payload: Dict[Any, Any]):
         )
         gdf = await read_gdf_async(get_file(get_blob_url(layer)), bbox)
         gdf = gdf[gdf.intersects(polygon_gdf.unary_union)]
-        condition = f"ID IN ({', '.join(gdf.ID.astype(str).tolist())})"
+        condition = f"id IN ({', '.join([f"'{x}'" for x in gdf.ID.astype(str).tolist()])})"
     if condition:
         df_lots = get_all(
-            f"""SELECT ID, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {
+            f"""SELECT id, ({metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots WHERE {
                 condition}""",
         )
     else:
         df_lots = get_all(
-            f"""SELECT ID, ({
+            f"""SELECT id, ({
                 metric}) As value, latitud, longitud, num_floors, max_height, potential_new_units FROM lots""",
         )
-    df_lots["ID"] = df_lots["ID"].astype(int).astype(str)
+    df_lots["ID"] = df_lots["id"].astype(int).astype(str)
     df_lots["value"] = df_lots["value"].fillna(0)
     df_lots = df_lots.fillna(0)
 
@@ -158,7 +152,7 @@ async def get_info(payload: Dict[Any, Any]):
         for i in range(0, len(lots), chunk_size):
             chunk = lots[i:i + chunk_size]
             chunk_str = ','.join([f"'{lot}'" for lot in chunk])
-            query = f"{base_query} WHERE ID IN ({chunk_str})"
+            query = f"{base_query} WHERE id IN ({chunk_str})"
             df = get_all(query)
             results.append(df)
     else:
@@ -170,97 +164,86 @@ async def get_info(payload: Dict[Any, Any]):
     df = df.fillna(0) # -----------------------------------------------
     print("Datos después de fillna(0) en df:", df)
     
-    inegi_data = df.groupby("CVEGEO").agg({
-            "POBTOT": "first",
-            "POBFEM": "first",
-            "POBMAS": "first",
-            "VIVTOT": "first",
-            "VIVPAR_HAB": "first",
-            "VIVPAR_DES": "first",
-            "VPH_AUTOM": "first", 
-            "VPH_PC": "first", 
-            "VPH_TINACO": "first", 
-            "PAFIL_IPRIV": "first", 
-            #"GRAPROES": "first",
-            
-            "P_0A2_F": "first",
-            "P_0A2_M": "first",
-            "P_3A5_F": "first",
-            "P_3A5_M": "first",
-            "P_6A11_F": "first",
-            "P_6A11_M": "first",
-            "P_12A14_F": "first",
-            "P_12A14_M": "first",
-            "P_15A17_F": "first",
-            "P_15A17_M": "first",
-            "P_18A24_F": "first",
-            "P_18A24_M": "first",
- 
-            "P_60YMAS_F": "first",
-            "P_60YMAS_M": "first",
-
-            # "mean_slope": "first"
-        })   
+    inegi_data = df.groupby("cvegeo").agg({
+        "pobtot": "first",
+        "pobfem": "first",
+        "pobmas": "first",
+        "vivtot": "first",
+        "vivpar_hab": "first",
+        "vivpar_des": "first",
+        "vph_autom": "first",
+        "vph_pc": "first", 
+        "vph_tinaco": "first",
+        "p_0a2_f": "first",
+        "p_0a2_m": "first",
+        "p_3a5_f": "first",
+        "p_3a5_m": "first",
+        "p_6a11_f": "first",
+        "p_6a11_m": "first",
+        "p_12a14_f": "first",
+        "p_12a14_m": "first",
+        "p_15a17_f": "first",
+        "p_15a17_m": "first",
+        "p_18a24_f": "first",
+        "p_18a24_m": "first",
+        "p_25a59_f": "first",
+        "p_25a59_m": "first",
+        "p_60ymas_f": "first",
+        "p_60ymas_m": "first",
+        # "mean_slope": "first"
+    })
         
     inegi_data = inegi_data.fillna(0)
     print("Datos después de fillna(0) en inegi_data:", inegi_data)
             
     inegi_data = inegi_data.agg({
-            "POBTOT": "sum",
-            "VIVTOT": "sum",
-            "VIVPAR_HAB": "sum",
-            "VIVPAR_DES": "sum", # Multiplicar por 100 puntuaje_hogar_digno y dejar sin decimales escuela y seguro médico
-            "VPH_AUTOM": "sum", # ---------- 
-            "VPH_PC": "sum", 
-            "VPH_TINACO": "sum", 
-            "PAFIL_IPRIV": "sum",
-            #"GRAPROES": "sum",
-            "POBFEM": "sum",
-            "POBMAS": "sum",
-            
-            "P_0A2_F": "sum",
-            "P_0A2_M": "sum",
-            "P_3A5_F": "sum",
-            "P_3A5_M": "sum",
-            "P_6A11_F": "sum",
-            "P_6A11_M": "sum",
-            "P_12A14_F": "sum",
-            "P_12A14_M": "sum",
-            "P_15A17_F": "sum",
-            "P_15A17_M": "sum",
-            "P_18A24_F": "sum",
-            "P_18A24_M": "sum",
-            
-            "P_60YMAS_F": "sum",
-            "P_60YMAS_M": "sum",
-        })
+        "pobtot": "sum",
+        "vivtot": "sum",
+        "vivpar_hab": "sum",
+        "vivpar_des": "sum",
+        "vph_autom": "sum",
+        "vph_pc": "sum",
+        "vph_tinaco": "sum",
+        "pobfem": "sum",
+        "pobmas": "sum",
+        "p_0a2_f": "sum",
+        "p_0a2_f": "sum",
+        "p_0a2_m": "sum",
+        "p_3a5_f": "sum",
+        "p_3a5_m": "sum",
+        "p_6a11_f": "sum",
+        "p_6a11_m": "sum",
+        "p_12a14_f": "sum",
+        "p_12a14_m": "sum",
+        "p_15a17_f": "sum",
+        "p_15a17_m": "sum",
+        "p_18a24_f": "sum",
+        "p_18a24_m": "sum",
+        "p_25a59_f": "sum",
+        "p_25a59_m": "sum",
+        "p_60ymas_f": "sum",
+        "p_60ymas_m": "sum",
+    })
         
     inegi_data = inegi_data.fillna(0)
     print("Datos después de la segunda agregación y fillna(0):", inegi_data)
-    print(df['accessibility_score'].describe())
     
-    df["car_ratio"] = df["VPH_AUTOM"] / df["VIVPAR_HAB"]
+    df["car_ratio"] = df["vph_autom"] / df["vivpar_hab"]
     df = df.replace([np.inf, -np.inf], np.nan).fillna(0)
     
-    df['PEA'] = df['PEA'].fillna(0)
-    df['PEA'] = pd.to_numeric(df['PEA'], errors='coerce').fillna(0).astype(int)
+    df['pea'] = df['pea'].fillna(0)
+    df['pea'] = pd.to_numeric(df['pea'], errors='coerce').fillna(0).astype(int)
     
     df['car_ratio'] = df['car_ratio'].fillna(0)
     df['car_ratio'] = pd.to_numeric(df['car_ratio'], errors='coerce').fillna(0).astype(int)
-    
     
     df['pob_por_cuarto'] = df['pob_por_cuarto'].fillna(0)
     df['pob_por_cuarto'] = pd.to_numeric(df['pob_por_cuarto'], errors='coerce').fillna(0).astype(int)
 
     df['puntuaje_hogar_digno'] = df['puntuaje_hogar_digno'].fillna(0)
     df['puntuaje_hogar_digno'] = pd.to_numeric(df['puntuaje_hogar_digno'], errors='coerce').fillna(0).astype(int)
-
     
-    inegi_data['P_25A59_F'] = inegi_data['POBFEM'] - inegi_data["P_0A2_F"] - inegi_data["P_3A5_F"] - inegi_data["P_6A11_F"] - inegi_data["P_12A14_F"] - inegi_data["P_15A17_F"] - inegi_data["P_18A24_F"] - inegi_data["P_60YMAS_F"]
-    inegi_data['P_25A59_M'] = inegi_data['POBMAS'] - inegi_data["P_0A2_M"] - inegi_data["P_3A5_M"] - inegi_data["P_6A11_M"] - inegi_data["P_12A14_M"] - inegi_data["P_15A17_M"] - inegi_data["P_18A24_M"] - inegi_data["P_60YMAS_M"]
-  
-    
-    df = df.drop(columns=["ID", "num_properties"]).agg(
+    df = df.drop(columns=["id", "num_properties"]).agg(
         {
             "building_ratio": "mean",
             "unused_ratio": "mean",
@@ -282,10 +265,10 @@ async def get_info(payload: Dict[Any, Any]):
             "latitud": "mean",
             "longitud": "mean",
             "car_ratio": "mean",
-            "PEA": "mean",  # pob económicamente activa
+            "pea": "mean",  # pob económicamente activa
             "pob_por_cuarto": "mean",
             "puntuaje_hogar_digno": "mean",
-            "GRAPROES": "mean",
+            "graproes": "mean",
             "accessibility_score": "mean",
             # "mean_slope": "mean"
         }

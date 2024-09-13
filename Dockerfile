@@ -3,7 +3,7 @@
 FROM python:3.12
 
 # Set the working directory inside the container
-WORKDIR /code
+WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -33,7 +33,10 @@ COPY poetry.lock pyproject.toml ./
 RUN poetry install --only main
 
 # Copy the entire project
-COPY . .
+COPY src ./src/
+
+# Set the PYTHONPATH to include the src/ directory
+ENV PYTHONPATH=/app/src
 
 # Expose the port that the application will run on
 EXPOSE 8000
