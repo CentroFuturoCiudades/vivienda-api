@@ -22,15 +22,15 @@ from shapely import Point, Polygon
 from shapely.geometry import box
 from sqlalchemy import create_engine
 
-from scripts.accessibility import calculate_accessibility
-from utils.files import get_file
-from utils.utils import get_all
+from src.scripts.accessibility import calculate_accessibility
+from src.utils.files import get_file
+from src.utils.utils import get_all
 import time
 import pickle
 from shapely.geometry import box
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from utils.constants import AMENITIES_MAPPING
+from src.utils.constants import AMENITIES_MAPPING
 from functools import lru_cache
 
 app = FastAPI()

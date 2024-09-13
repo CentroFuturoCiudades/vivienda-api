@@ -9,7 +9,7 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
-from utils.constants import (
+from src.utils.constants import (
     ACCESIBILITY_MAPPING,
     AMENITIES_MAPPING,
     MAX_ESTABLISHMENTS,
@@ -17,7 +17,7 @@ from utils.constants import (
     WALK_RADIUS,
     WALK_SPEED,
 )
-from utils.utils import normalize
+from src.utils.utils import normalize
 from functools import lru_cache
 
 BETA_GRAVITY = 0.001

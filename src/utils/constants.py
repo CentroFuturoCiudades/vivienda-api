@@ -254,38 +254,42 @@ DENUE_TO_AMENITY_MAPPING = [
         "name": "Asistencia social",
         "query": 'codigo_act.str.match("^623")',
     },
+    # {
+    #     "name": "Laboratorios clínicos",
+    #     "query": 'codigo_act.str.match("^6215")',
+    # },
+    # {
+    #     "name": "Otros consultorios",
+    #     "query": 'codigo_act.str.match("^6212")',
+    # },
+    # {
+    #     "name": "Otros consultorios",
+    #     "query": 'codigo_act.str.match("^6213")',
+    # },
+    # {
+    #     "name": "Consultorios médicos",
+    #     "query": 'codigo_act.str.match("^6211")',
+    # },
     {
-        "name": "Laboratorios clínicos",
-        "query": 'codigo_act.str.match("^6215")',
+        "name": "Todos los consultorios médicos",
+        "query": 'codigo_act.str.match("^621")',
     },
-    {
-        "name": "Otros consultorios",
-        "query": 'codigo_act.str.match("^6212")',
-    },
-    {
-        "name": "Otros consultorios",
-        "query": 'codigo_act.str.match("^6213")',
-    },
-    {
-        "name": "Consultorios médicos",
-        "query": 'codigo_act.str.match("^6211")',
-    },
-    {
-        "name": "Hospital general",
-        "query": 'codigo_act.str.match("^6221")',
-    },
-    {
-        "name": "Hospitales psiquiátricos",
-        "query": 'codigo_act.str.match("^6222")',
-    },
-    {
-        "name": "Hospitales otras especialidades",
-        "query": 'codigo_act.str.match("^6223")',
-    },
-    {
-        "name": "Farmacia",
-        "query": 'codigo_act.str.match("^46411")',
-    },
+    # {
+    #     "name": "Hospital general",
+    #     "query": 'codigo_act.str.match("^6221")',
+    # },
+    # {
+    #     "name": "Hospitales psiquiátricos",
+    #     "query": 'codigo_act.str.match("^6222")',
+    # },
+    # {
+    #     "name": "Hospitales otras especialidades",
+    #     "query": 'codigo_act.str.match("^6223")',
+    # },
+    # {
+    #     "name": "Farmacia",
+    #     "query": 'codigo_act.str.match("^46411")',
+    # },
     {
         "name": "Clubs deportivos y de acondicionamiento físico",
         "query": 'codigo_act.str.match("^71394")',
@@ -363,6 +367,34 @@ DENUE_TO_AMENITY_MAPPING = [
         "query": 'codigo_act.str.match("^6113")',
     },
 ]
+AMENITIES_FILE_MAPPING = {
+    'PARQUE': 'Parques recreativos',
+    'EDUCACION': 'Educación',
+    'EDUCACION BASICA': 'Educación Primaria',
+    'BASICO': 'Educación Primaria',
+    'INTERMEDIA': 'DIF',
+    'INTERMEDIO': 'Educación Secundaria',
+    'NIVEL MEDIO SUPERIOR': 'Educación Media Superior',
+    'NIVEL SUPERIOR': 'Educación Superior',
+    'EDUCACION ESPECIAL': 'Educación Especial',
+    'EDUCACION EXTRAESCOLAR': 'Educación Extraescolar',
+    'ASISTENCIA SOCIAL': 'Asistencia Social',
+    'DEPORTE': 'Clubs deportivos y de acondicionamiento físico',
+    'ABASTO': 'Abasto',
+    'PRIMER NIVEL': 'Hospital general',
+    'SEGUNDO NIVEL': 'Hospital general',
+    'TERCER NIVEL': 'Hospital general',
+    'SALUD': 'Hospital general',
+    'CULTURA Y RECREACION': 'Otros Servicios recreativos',
+    'PLAZA': 'Parques recreativos',
+    # 'ADMINISTRACION PUBLICA': 'Administración Pública',
+    # 'CAMELLONES': 'park',
+    # 'JARDIN': 'park',
+    # 'SIN USO': 'Sin Uso',
+    # 'INVADIDO': 'Invadido',
+    # 'ESPACIOS PUBLICOS DE TRANSICION': 'park',
+    # 'ANP': 'Área Natural Protegida',
+}
 # AMENITIES_MAPPING = [
 #     {
 #         "from": "home",

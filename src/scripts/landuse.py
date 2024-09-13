@@ -14,6 +14,7 @@ from utils.constants import (
     PARKING_FILTER,
     PARKING_TAGS,
     WALK_RADIUS,
+    AMENITIES_FILE_MAPPING,
 )
 
 
@@ -60,7 +61,8 @@ def overlay_multiple(
             gdf_filtered, how="intersection", keep_geom_type=False
         )
         if not cumulative_overlay.empty:
-            gdf_intersect = gdf_intersect[gdf_intersect.geom_type.isin(["Polygon", "MultiPolygon"])]
+            gdf_intersect = gdf_intersect[gdf_intersect.geom_type.isin(
+                ["Polygon", "MultiPolygon"])]
             gdf_intersect = gdf_intersect.overlay(
                 cumulative_overlay, how="difference")
 
@@ -121,39 +123,11 @@ if __name__ == "__main__":
         ["amenity", "name", "geometry"]]
     gdf_amenities_extra = gdf_amenities_extra[gdf_amenities_extra["amenity"].notnull(
     )]
-    rename_mapping = {
-        'PARQUE': 'Parques recreativos',
-        'EDUCACION': 'Educación',
-        'EDUCACION BASICA': 'Educación Primaria',
-        'BASICO': 'Educación Primaria',
-        'INTERMEDIA': 'DIF',
-        'INTERMEDIO': 'Educación Secundaria',
-        'NIVEL MEDIO SUPERIOR': 'Educación Media Superior',
-        'NIVEL SUPERIOR': 'Educación Superior',
-        'EDUCACION ESPECIAL': 'Educación Especial',
-        'EDUCACION EXTRAESCOLAR': 'Educación Extraescolar',
-        'ASISTENCIA SOCIAL': 'Asistencia Social',
-        'DEPORTE': 'Clubs deportivos y de acondicionamiento físico',
-        'ABASTO': 'Abasto',
-        'PRIMER NIVEL': 'Hospital general',
-        'SEGUNDO NIVEL': 'Hospital general',
-        'TERCER NIVEL': 'Hospital general',
-        'SALUD': 'Hospital general',
-        'CULTURA Y RECREACION': 'Otros Servicios recreativos',
-        'PLAZA': 'Parques recreativos',
-        # 'ADMINISTRACION PUBLICA': 'Administración Pública',
-        # 'CAMELLONES': 'park',
-        # 'JARDIN': 'park',
-        # 'SIN USO': 'Sin Uso',
-        # 'INVADIDO': 'Invadido',
-        # 'ESPACIOS PUBLICOS DE TRANSICION': 'park',
-        # 'ANP': 'Área Natural Protegida',
-    }
     # rename the amenities and remove the ones that are not in the mapping
     gdf_amenities_extra["amenity"] = gdf_amenities_extra["amenity"].replace(
-        rename_mapping)
+        AMENITIES_FILE_MAPPING)
     gdf_amenities_extra = gdf_amenities_extra[gdf_amenities_extra["amenity"].isin(
-        rename_mapping.values())]
+        AMENITIES_FILE_MAPPING.values())]
     gdf_amenities_extra = gdf_amenities_extra[gdf_amenities_extra.within(
         gdf_bounds)]
 
@@ -223,7 +197,8 @@ if __name__ == "__main__":
     gdf_amenities = cut_out_inner_polygons(gdf_amenities)
     gdf_amenities = gdf_amenities[["geometry", "amenity", "name"]]
     # consider only those larger than 0.1 quantile
-    gdf_amenities = gdf_amenities.loc[gdf_amenities.geometry.area > gdf_amenities.geometry.area.quantile(0.01)]
+    gdf_amenities = gdf_amenities.loc[gdf_amenities.geometry.area >
+                                      gdf_amenities.geometry.area.quantile(0.01)]
     gdf_buildings = gdf_buildings[["geometry"]]
 
     print(gdf_amenities)
