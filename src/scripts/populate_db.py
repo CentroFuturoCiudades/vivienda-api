@@ -197,14 +197,17 @@ if __name__ == "__main__":
         "units_estimate": int,
         "potential_new_units": int,
     }
-    df = pd.read_csv(args.lots_file)
-    
-    df = clean_and_cast_types(df, mapping)
+    chunksize = 2000  # Define the chunk size you want to process at a time
 
-    df.to_sql(
-        "lots",
-        engine,
-        if_exists="replace",
-        index=False,
-        index_label="ID",
-    )
+    for chunk in pd.read_csv(args.lots_file, chunksize=chunksize, low_memory=False):
+        # Clean and cast types for each chunk
+        chunk = clean_and_cast_types(chunk, mapping)
+        
+        # Write each chunk to the database
+        chunk.to_sql(
+            "lots",
+            engine,
+            if_exists="append",
+            index=False,
+            index_label="ID",
+        )
