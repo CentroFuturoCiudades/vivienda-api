@@ -4,7 +4,6 @@ import os
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-from pyogrio import read_dataframe
 from sqlalchemy import create_engine, text
 from sqlalchemy.types import Float
 import psycopg2
@@ -198,7 +197,7 @@ if __name__ == "__main__":
         "units_estimate": int,
         "potential_new_units": int,
     }
-    df = read_dataframe(args.lots_file)
+    df = pd.read_csv(args.lots_file)
     
     df = clean_and_cast_types(df, mapping)
 
