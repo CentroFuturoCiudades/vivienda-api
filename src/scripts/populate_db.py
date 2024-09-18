@@ -199,20 +199,9 @@ if __name__ == "__main__":
         "potential_new_units": int,
     }
     df = read_dataframe(args.lots_file)
-    # for x in range(1, 21):
-    #     df = df.drop(columns=[f"distance_{x}", f"gravity_temp_{x}"])
-    df = df.drop(columns=["geometry"])
     
     df = clean_and_cast_types(df, mapping)
 
-    # df.to_sql(
-    #     "lots",
-    #     engine,
-    #     if_exists="replace",
-    #     index=False,
-    #     index_label="ID",
-    #     chunksize=5000,
-    # )
     df.to_sql(
         "lots",
         engine,
