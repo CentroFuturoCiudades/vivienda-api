@@ -40,17 +40,5 @@ services:
       - ./src:/app/src
       - ./scripts:/app/scripts
     command: ["poetry", "run", "gunicorn", "src.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
-
-  nginx:
-    image: nginx:latest
-    container_name: reimagina_urbano_nginx
-    restart: always
-    ports:
-      - "80:80"   # HTTP
-      - "443:443" # HTTPS
-    volumes:
-      - ./nginx/sites-available:/etc/nginx/sites-available  # Mount sites-available
-      - ./nginx/sites-enabled:/etc/nginx/sites-enabled      # Mount sites-enabled
-      - ./certs:/etc/nginx/certs                  # SSL certificates
 volumes:
   pgdata:
