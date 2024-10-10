@@ -9,8 +9,8 @@ import pandas as pd
 import requests
 from geopandas import GeoDataFrame
 
-from utils.constants import CSV_DENUE, DENUE, REGEX_PPL, WALK_RADIUS
-from utils.utils import SECTORS_MAP, fill, fit_to_boundaries
+from src.utils.constants import CSV_DENUE, DENUE, REGEX_PPL, WALK_RADIUS
+from src.utils.utils import SECTORS_MAP, fill, fit_to_boundaries
 
 
 def map_sector_to_sector(codigo_act: int) -> str:

@@ -6,7 +6,7 @@ import osmnx as ox
 import pandas as pd
 from shapely.geometry import Polygon
 
-from utils.constants import (
+from src.utils.constants import (
     BUFFER_PARKING,
     EQUIPMENT_TAGS,
     GDFS_MAPPING,
@@ -101,39 +101,43 @@ def get_args():
     return parser.parse_args()
 
 
+def load_gdf(file, gdf_bounds=None):
+    if gdf_bounds is None:
+        return gpd.read_file(file, engine="pyogrio").to_crs("EPSG:4326")
+    # bounding_box = gdf_bounds.total_bounds
+    # bbox = (bounding_box[0], bounding_box[1], bounding_box[2], bounding_box[3])
+    gdf = gpd.read_file(file, engine="pyogrio").to_crs("EPSG:4326")
+    gdf = gdf[gdf.intersects(gdf_bounds.unary_union)]
+    return gdf
+
+
 if __name__ == "__main__":
     args = get_args()
 
     gdf_bounds = gpd.read_file(args.bounds_file, crs="EPSG:4326")
-    gdf_bounds = (
-        gdf_bounds.to_crs("EPSG:32614")
-        .buffer(WALK_RADIUS)
-        .to_crs("EPSG:4326")
-        .unary_union
-    )
-    # gdf_bounds = gpd.read_file(args.bounds_file, crs="EPSG:4326").unary_union
-    gdf_establishments = gpd.read_file(
-        args.establishments_file, engine="pyogrio").to_crs("EPSG:4326")
-    gdf_lots = gpd.read_file(
-        args.lots_establishments_file, engine="pyogrio").to_crs("EPSG:4326")
+    gdf_bounds = gdf_bounds.to_crs("EPSG:32614").buffer(WALK_RADIUS).to_crs("EPSG:4326")
+    gdf_denue = load_gdf(args.establishments_file)
+    gdf_lots = load_gdf(args.lots_establishments_file)
     gdf_lots["lot_area"] = gdf_lots.to_crs("EPSG:6933").area / 10_000
-    gdf_amenities_extra = gpd.read_file(
-        args.amenities_file, engine="pyogrio").to_crs("EPSG:4326")
-    gdf_amenities_extra = gdf_amenities_extra.rename({"NOM2_2_ACT": "amenity", "DESCRIP": "name"}, axis=1)[
-        ["amenity", "name", "geometry"]]
-    gdf_amenities_extra = gdf_amenities_extra[gdf_amenities_extra["amenity"].notnull(
-    )]
+    gdf_amenities = load_gdf(args.amenities_file, gdf_bounds)
+    gdf_amenities = gdf_amenities.rename({"NOM2_2_ACT": "amenity", "DESCRIP": "name", "AMBITO": "ambito"}, axis=1)[
+        ["amenity", "name", "geometry", "ambito"]]
     # rename the amenities and remove the ones that are not in the mapping
-    gdf_amenities_extra["amenity"] = gdf_amenities_extra["amenity"].replace(
+    gdf_amenities = gdf_amenities[gdf_amenities["amenity"].isin(
+        AMENITIES_FILE_MAPPING.keys())]
+    gdf_amenities["amenity"] = gdf_amenities["amenity"].replace(
         AMENITIES_FILE_MAPPING)
-    gdf_amenities_extra = gdf_amenities_extra[gdf_amenities_extra["amenity"].isin(
-        AMENITIES_FILE_MAPPING.values())]
-    gdf_amenities_extra = gdf_amenities_extra[gdf_amenities_extra.within(
-        gdf_bounds)]
+    gdf_denue_amenities = gdf_denue[gdf_denue["amenity"].notnull()].rename({
+        "ID_lot": "ID", "nom_estab": "name"}, axis=1)
+    gdf_amenities = gpd.GeoDataFrame(
+        pd.concat([gdf_amenities, gdf_denue_amenities],
+                  ignore_index=True),
+        crs="EPSG:4326",
+    )
 
     # Load the polygons for parking lots
     G_service_highways = ox.graph_from_polygon(
-        gdf_bounds,
+        gdf_bounds.unary_union,
         custom_filter=PARKING_FILTER,
         network_type="all",
         retain_all=True,
@@ -142,13 +146,13 @@ if __name__ == "__main__":
         G_service_highways, nodes=False
     ).reset_index()
     gdf_parking_amenities = ox.geometries_from_polygon(
-        gdf_bounds, tags=PARKING_TAGS
+        gdf_bounds.unary_union, tags=PARKING_TAGS
     ).reset_index()
     gdf_parking_amenities = gdf_parking_amenities[
         (gdf_parking_amenities["element_type"] != "node")
     ]
     gdf_parking_amenities["geometry"] = gdf_parking_amenities["geometry"].intersection(
-        gdf_bounds
+        gdf_bounds.unary_union
     )
     gdf_combined = gpd.GeoDataFrame(
         pd.concat([gdf_service_highways, gdf_parking_amenities],
@@ -160,67 +164,22 @@ if __name__ == "__main__":
                          for poly in unified_geometry.geoms]
     gdf_parking = gpd.GeoDataFrame(geometry=external_polygons, crs="EPSG:4326")
 
-    # Load the polygons for parks
-    gdf_parks = ox.geometries_from_polygon(
-        gdf_bounds, tags=PARK_TAGS).reset_index()
-    gdf_parks = gdf_parks[gdf_parks["element_type"] != "node"]
-    gdf_parks["geometry"] = gdf_parks["geometry"].intersection(gdf_bounds)
-
-    # Load the polygons for equipment equipments (schools, universities and places of worship)
-    gdf_equipment = ox.geometries_from_polygon(
-        gdf_bounds, tags=EQUIPMENT_TAGS
-    ).reset_index()
-    gdf_equipment = gdf_equipment[gdf_equipment["element_type"] != "node"]
-    gdf_equipment["geometry"] = gdf_equipment["geometry"].intersection(
-        gdf_bounds)
-
-    gdf_buildings = gpd.read_file(
-        args.buildings_file, engine="pyogrio").to_crs("EPSG:4326")
-    gdf_vegetation = gpd.read_file(args.vegetation_file, engine="pyogrio").to_crs("EPSG:4326").reset_index(
-        drop=True
-    )
-    gdf_parks["amenity"] = "park"
-    gdf_equipment["amenity"] = (
-        gdf_equipment["amenity"]
-        .fillna(gdf_equipment["leisure"])
-        .fillna(gdf_equipment["building"])
-        .fillna(gdf_equipment["landuse"])
-    )
-    gdf_amenities = gpd.GeoDataFrame(
-        pd.concat([gdf_parks, gdf_equipment], ignore_index=True), crs="EPSG:4326"
-    )
-    # remove amenities from gdf_amenities that are inside gdf_amenities_extra
-    gdf_amenities = gdf_amenities[~gdf_amenities.intersects(
-        gdf_amenities_extra.unary_union)]
-    gdf_amenities = pd.concat(
-        [gdf_amenities, gdf_amenities_extra], ignore_index=True)
-    gdf_amenities = cut_out_inner_polygons(gdf_amenities)
-    gdf_amenities = gdf_amenities[["geometry", "amenity", "name"]]
-    # consider only those larger than 0.1 quantile
-    gdf_amenities = gdf_amenities.loc[gdf_amenities.geometry.area >
-                                      gdf_amenities.geometry.area.quantile(0.01)]
+    gdf_buildings = load_gdf(args.buildings_file)
+    gdf_vegetation = load_gdf(args.vegetation_file).reset_index(drop=True)
     gdf_buildings = gdf_buildings[["geometry"]]
 
-    print(gdf_amenities)
-    print(gdf_amenities.geometry.area.describe())
-    gdf_amenities.plot()
-    plt.show()
+    # print(gdf_amenities)
+    # gdf_amenities.plot(column="amenity", legend=True)
+    # plt.show()
+    gdf_amenities.to_file(args.output_folder.format("amenity"), engine="pyogrio")
 
-    list_gdfs = [gdf_buildings, gdf_parking, gdf_amenities, gdf_vegetation]
+    list_gdfs = [gdf_buildings, gdf_parking, gdf_vegetation]
     gdfs = overlay_multiple(gdf_lots, list_gdfs)
 
-    establishments_amenities = gdf_establishments[gdf_establishments["amenity"].notnull()].rename({
-        "ID_lot": "ID", "nom_estab": "name"}, axis=1)
-    gdfs[2] = gpd.GeoDataFrame(
-        pd.concat([gdfs[2], establishments_amenities],
-                  ignore_index=True),
-        crs="EPSG:4326",
-    )
     gdfs[0] = gdfs[0][["ID", "geometry", "lot_area"]]
     gdfs[1] = gdfs[1][["ID", "geometry", "lot_area"]]
-    gdfs[2] = gdfs[2][["ID", "amenity", "name", "geometry", "lot_area"]]
+    gdfs[2] = gdfs[2][["ID", "geometry", "lot_area"]]
     gdfs[3] = gdfs[3][["ID", "geometry", "lot_area"]]
-    gdfs[4] = gdfs[4][["ID", "geometry", "lot_area"]]
 
     for gdf, item in zip(gdfs, GDFS_MAPPING):
         column_area = f'{item["name"]}_area'

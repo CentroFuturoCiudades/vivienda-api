@@ -10,17 +10,17 @@ from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
 from src.utils.constants import (
-    ACCESIBILITY_MAPPING,
     AMENITIES_MAPPING,
     MAX_ESTABLISHMENTS,
-    PROXIMITY_MAPPING,
     WALK_RADIUS,
     WALK_SPEED,
 )
 from src.utils.utils import normalize
 from functools import lru_cache
 
-BETA_GRAVITY = 0.001
+# TODO: Use beta with recommended radius of the amenities
+BETA_GRAVITY = {item['name']: 1 / (item['radius'] / 3) for item in AMENITIES_MAPPING}
+NUM_POIS = 5
 
 
 def get_proximity(network, categories_mapping):
@@ -34,7 +34,7 @@ def get_proximity(network, categories_mapping):
             num_pois=num_pois,
             include_poi_ids=False,
         )
-        results.append(proximity[num_pois] / (WALK_SPEED * 60))
+        results.append(proximity[num_pois] / WALK_SPEED)
 
     # get the maximum time for each category
     final_proximity = pd.concat(results, axis=1)
@@ -133,15 +133,10 @@ if __name__ == "__main__":
         str)
     gdf_amenities = gpd.read_file(
         args.amenities_file, engine="pyogrio").to_crs("EPSG:4326")
+    gdf_amenities['area'] = gdf_amenities.to_crs("EPSG:3043").area
 
     for item in gdf_amenities:
         item = item.replace(" ", "_")
-
-    gdfs_mapping = {
-        "home": gdf_lots,
-        "establishment": gdf_establishments,
-        "amenity": gdf_amenities,
-    }
 
     # TODO: Load pedestrian network from folder of project
     pedestrian_network = load_network(
@@ -150,101 +145,103 @@ if __name__ == "__main__":
 
     accessibility_scores = {}
     gdf_aggregate = gpd.GeoDataFrame()
+    mean_size = gdf_lots['geometry'].area.median()
 
     for item in AMENITIES_MAPPING:
-        from_gdf = gdfs_mapping[item["from"]]
-
-        if "query_from" in item:
-            from_gdf = from_gdf.query(item["query_from"])
-        to_gdf = gdfs_mapping[item["to"]]
+        to_gdf = gdf_amenities
         if "query_to" in item:
             to_gdf = to_gdf.query(item["query_to"])
 
-        if from_gdf.empty or to_gdf.empty:
-            continue
-        from_gdf['node_ids'] = pedestrian_network.get_node_ids(
-            from_gdf.geometry.centroid.x, from_gdf.geometry.centroid.y
+        gdf_lots['node_ids'] = pedestrian_network.get_node_ids(
+            gdf_lots.geometry.centroid.x, gdf_lots.geometry.centroid.y
         )
+        gdf_lots = gdf_lots.reset_index()
+        gdf_lots['index'] = gdf_lots['index'].astype(str)
+        gdf_lots = gdf_lots.set_index('index')
 
         to_gdf['node_ids'] = pedestrian_network.get_node_ids(
             to_gdf.geometry.centroid.x, to_gdf.geometry.centroid.y
         )
 
-        item_gdf = to_gdf
-
-        item_gdf['node_ids'] = pedestrian_network.get_node_ids(
-            item_gdf.geometry.centroid.x, item_gdf.geometry.centroid.y
-        )
-
-        item_gdf = item_gdf[["node_ids", "geometry", "amenity"]]
-
-        gdf_aggregate = pd.concat([gdf_aggregate, item_gdf], ignore_index=True)
-        gdf_aggregate = gdf_aggregate.fillna(0)
-        gdf_aggregate.to_file(args.accessibility_points_file)
+        to_gdf = to_gdf[["node_ids", "geometry", "amenity", "num_workers", "students", "teachers", "area"]]
 
         sector = item['name']
-        to_gdf = to_gdf[["node_ids", "geometry"]]
-        to_gdf['category'] = sector
+        gdf_amenities['category'] = sector
         amount = item.get("amount", 1)
         importance = item['importance']
         pedestrian_network.set_pois(
             category=sector,
             x_col=to_gdf.geometry.centroid.x,
             y_col=to_gdf.geometry.centroid.y,
-            maxdist=item['radius'],
-            maxitems=20,
+            maxdist=WALK_RADIUS,
+            maxitems=NUM_POIS,
         )
         proximity = pedestrian_network.nearest_pois(
-            distance=item['radius'],
+            distance=WALK_RADIUS,
             category=sector,
-            num_pois=20,
-            include_poi_ids=False,
+            num_pois=NUM_POIS,
+            include_poi_ids=True,
         )
+        proximity['amenity'] = sector
+        gdf_lots['population'] = gdf_lots.eval(item["pob_query"])
+        proximity = proximity.reset_index().merge(gdf_lots[['node_ids', 'population']], left_on='osmid', right_on='node_ids', how='left')
+        proximity = proximity.groupby('osmid').agg('first').reset_index().drop(columns=['node_ids'])
+        num_poi_cols = range(1, NUM_POIS + 1)
+        poi_cols = [f'poi{col}' for col in num_poi_cols]
+        proximity = proximity.rename(columns={x: f'distance{x}' for x in num_poi_cols})
+        proximity = pd.wide_to_long(proximity, stubnames=['distance', 'poi'], i='osmid', j='num_poi', sep='').reset_index()
+        proximity = proximity[proximity['distance'] < item['radius']]
+        proximity = proximity.rename(columns={'poi': 'destination_id', 'osmid': 'origin_id', 'num_poi': 'num_establishment'})
+        # proximity['attraction'] = proximity['destination_id'].apply(lambda x: max(to_gdf.loc[x]['geometry'].area, mean_size) if x in to_gdf.index else mean_size)
+        attraction_values = to_gdf.eval(item["attraction_query"])
+        proximity['attraction'] = proximity.apply(lambda x: attraction_values.loc[x['destination_id']] if x['destination_id'] in to_gdf.index else 0, axis=1)
+        proximity['gravity'] = proximity.apply(lambda x: 1 / np.exp(BETA_GRAVITY[x['amenity']] * x['distance']), axis=1)
+        proximity['pob_reach'] = proximity['population'] * proximity['gravity']
+        proximity['minutes'] = proximity['distance'] / WALK_SPEED
 
-        gravity_temps = []
-        for i in range(1, 21):
-            # Calculate distance and gravity_temp without adding them to from_gdf
-            distance_i = from_gdf['node_ids'].map(proximity[i])
-            within_radius = distance_i < item['radius']
-            gravity_temp_i = np.where(
-                within_radius,
-                from_gdf["POBTOT"] * importance / np.exp(BETA_GRAVITY * distance_i),
-                0
-            )
-            gravity_temps.append(gravity_temp_i)
-
-        # Calculate the final distance and minutes without adding them to from_gdf
-        distance = proximity[amount]
-        minutes = distance / (WALK_SPEED * 60)
-        from_gdf['distance'] = from_gdf['node_ids'].map(distance)
-        from_gdf['minutes'] = from_gdf['node_ids'].map(minutes)
-
-        # Sum the gravity_temp values across all i and add it to from_gdf as gravity_score
-        from_gdf['gravity_score'] = np.sum(gravity_temps, axis=0)
-
-        # Update accessibility_scores
-        accessibility_scores.update(from_gdf.groupby(
-            'node_ids')['gravity_score'].sum().to_dict())
-
-    accessibility_df = pd.DataFrame.from_dict(
-        accessibility_scores, orient='index', columns=['accessibility_score'])
+        gdf_aggregate = pd.concat([gdf_aggregate, proximity], ignore_index=True)
+    
+    gdf_destinations = gdf_aggregate.groupby('destination_id').agg({
+        'pob_reach': 'sum',
+        'attraction': 'first'
+    })
+    gdf_destinations['opportunities_ratio'] = gdf_destinations.apply(lambda x: x['attraction'] / x['pob_reach'] if x['pob_reach'] > 0 else 0, axis=1)
+    gdf_aggregate['accessibility_score'] = gdf_aggregate.apply(lambda x: gdf_destinations['opportunities_ratio'].loc[x['destination_id']] * x['gravity']
+        if x['destination_id'] in gdf_destinations['opportunities_ratio'].index else 0, axis=1)
+    accessibility_scores = gdf_aggregate.groupby(['origin_id', 'amenity']).agg({'accessibility_score': 'sum', 'minutes': 'min'})
+    accessibility_scores = accessibility_scores.groupby('origin_id').agg({'accessibility_score': 'sum', 'minutes': 'max'})
     gdf_lots = gdf_lots.merge(
-        accessibility_df, left_on="node_ids", right_index=True, how="left"
+        accessibility_scores, left_on="node_ids", right_index=True, how="left"
     )
     gdf_lots = gdf_lots.drop(columns=["node_ids"])
-    gdf_lots['accessibility_score'] = np.log1p(gdf_lots['accessibility_score'])
-    gdf_lots['accessibility_score'] = normalize(gdf_lots['accessibility_score'])
+    gdf_destinations = gdf_destinations[gdf_destinations['opportunities_ratio'] > 0]
+    gdf_amenities = gdf_amenities.merge(
+        gdf_destinations, left_index=True, right_index=True, how="left"
+    )
     gdf_lots.to_file(args.output_file, engine="pyogrio")
 
-    fig, ax = plt.subplots()
+    gdf_accessibility_points = gdf_amenities.copy()
+    gdf_accessibility_points['geometry'] = gdf_accessibility_points.centroid
+    gdf_accessibility_points.to_file(args.accessibility_points_file)
+
+    fig, ax = plt.figure(1), plt.subplot()
+    ax.set_axis_off()
+    gdf_lots.plot(ax=ax, column='minutes', cmap='Reds', legend=True)
+    fig, ax = plt.figure(2), plt.subplot()
     ax.set_axis_off()
     gdf_lots.plot(ax=ax, column='accessibility_score',
-                  scheme='quantiles', k=10, cmap='Reds')
-    new_gdf_amenities = gpd.GeoDataFrame()
-    for x in AMENITIES_MAPPING:
-        tmp = gdf_amenities.query(x["query_to"])
-        new_gdf_amenities = gpd.GeoDataFrame(
-            pd.concat([tmp, new_gdf_amenities], ignore_index=True)
-        )
-    new_gdf_amenities.plot(ax=ax, column='amenity', legend=True, cmap='tab20')
+                  scheme='quantiles', k=10, cmap='Reds', legend=True)
+    gdf_amenities.plot(ax=ax, column='opportunities_ratio', legend=True, cmap='Blues', scheme='quantiles')
+
+    fig, ax = plt.figure(3), plt.subplot()
+    ax.set_axis_off()
+    gdf_lots.plot(ax=ax, column='accessibility_score',
+                  scheme='quantiles', k=10, cmap='Reds', legend=True)
+    gdf_amenities.plot(ax=ax, column='attraction', legend=True, cmap='Blues', scheme='quantiles')
+
+    fig, ax = plt.figure(4), plt.subplot()
+    ax.set_axis_off()
+    gdf_lots.plot(ax=ax, column='accessibility_score',
+                  scheme='quantiles', k=10, cmap='Reds', legend=True)
+    gdf_amenities.plot(ax=ax, column='pob_reach', legend=True, cmap='Blues', scheme='quantiles')
     plt.show()

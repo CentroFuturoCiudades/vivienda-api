@@ -196,6 +196,7 @@ if __name__ == "__main__":
         "max_home_units": int,
         "units_estimate": int,
         "potential_new_units": int,
+        "mean_slope": float,
     }
     chunksize = 2000  # Define the chunk size you want to process at a time
 

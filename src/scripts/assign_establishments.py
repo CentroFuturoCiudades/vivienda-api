@@ -5,49 +5,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import re
 
-from utils.constants import AMENITIES_MAPPING, DENUE_TO_AMENITY_MAPPING
+from src.utils.constants import AMENITIES_MAPPING, DENUE_TO_AMENITY_MAPPING
 import numpy as np
-
-
-mapping = {
-    r"^623": "Asistencia social",
-    r"^6215": "Laboratorios clínicos",
-    r"^6212": "Otros consultorios",
-    r"^6213": "Otros consultorios",
-    r"^6211": "Consultorios médicos",
-    r"^6221": "Hospital general",
-    r"^6222": "Hospitales psiquiátricos",
-    r"^6223": "Hospitales otras especialidades",
-    r"^46411": "Farmacia",
-    r"^71394": "Clubs deportivos y de acondicionamiento físico",
-    r"^51213": "Cine",
-    r"^7139": "Otros Servicios recreativos",
-    r"^7112": "Espectáculos deportivos",
-    r"^7131": "Parques recreativos",
-    r"^71212": "Sitios históricos",
-    r"^71213": "Jardines botánicos y zoológicos",
-    r"^7223": "Grutas, parques naturales o patrimonio cultural",
-    r"^7111": "Espectáculos artísticos y culturales",
-    r"^71211": "Museos",
-    r"^51921": "Biblioteca",
-    r"^6244": "Guarderia",
-    r"^61111": "Educación Preescolar",
-    r"^61112": "Educación Primaria",
-    r"^61113": "Educación Secundaria",
-    r"^61114": "Educación Secundaria Técnica",
-    r"^61115": "Educacion Media Técnica",
-    r"^61116": "Educación Media Superior",
-    r"^61121": "Educación Técnica Superior",
-    r"^6113": "Educación Superior",
-}
-
-
-def map_equipment_type(clee):
-    for pattern, equipment_type in mapping.items():
-        if re.match(pattern, clee):
-            return equipment_type
-    return np.nan
-
 
 def assign_by_buffer(
     gdf_block_lots: gpd.GeoDataFrame, gdf_denue: gpd.GeoDataFrame

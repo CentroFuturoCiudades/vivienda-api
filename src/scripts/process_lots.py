@@ -7,10 +7,61 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import pandas as pd
 import requests
+import os
+import io
+import re
 
-from utils.constants import CSV_PATH_MZA_2020, KEEP_COLUMNS, URL_MZA_2020, MAPPING_SCORE_VARS
-from utils.utils import normalize
+from src.utils.constants import CSV_PATH_MZA_2020, KEEP_COLUMNS, URL_MZA_2020, MAPPING_SCORE_VARS
+from src.utils.utils import normalize
 
+
+INEGI_GEO_BLOCKS_URL = 'https://www.inegi.org.mx/contenidos/productos/prod_serv/contenidos/espanol/bvinegi/productos/geografia/rural/SHP_2023/{state}/{municipality_code}_s.zip'
+INEGI_GEO_BLOCKS_REGEX = r'.*/conjunto_de_datos/\d+m\.(shp|shx|dbf|prj)'
+
+def download_blocks(state, municipality_code, path='.'):
+  url = INEGI_GEO_BLOCKS_URL.format(state=state, municipality_code=municipality_code)
+  print(url)
+  
+  # Download the zip file from the URL
+  response = requests.get(url)
+  
+  # Use a temporary folder for extracting files
+  tmp_folder = os.path.join(path, 'tmp')
+  os.makedirs(tmp_folder, exist_ok=True)
+  
+  # Open the zip file in memory
+  with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+    # Get the list of files matching the shapefile-related extensions
+    files = z.namelist()
+    files = [f for f in files if re.match(INEGI_GEO_BLOCKS_REGEX, f)]
+    
+    # Raise an error if no relevant files are found
+    if len(files) == 0:
+        raise ValueError('No shapefiles found in zip file')
+    
+    # Extract only the necessary files
+    for f in files:
+      filename = os.path.basename(f)
+      z.extract(f, tmp_folder)
+      os.rename(os.path.join(tmp_folder, f), os.path.join(tmp_folder, filename))
+    
+    # Extract the base filename for the shapefile (without extension)
+    filename = os.path.basename(files[0])
+    filename = os.path.splitext(filename)[0]
+
+    # Load the shapefile into a GeoDataFrame
+    gdf = gpd.read_file(os.path.join(tmp_folder, f'{filename}.shp')).to_crs('EPSG:4326')
+
+    # Define the output folder and file path
+    output_file = os.path.join(path, f'{municipality_code}.fgb')
+
+    # Save the GeoDataFrame as an FGB file
+    gdf.to_file(output_file, driver='FlatGeobuf')
+  
+  # Clean up the temporary folder
+  shutil.rmtree(tmp_folder)
+  
+  return output_file
 
 def gather_data(state_code: int) -> pd.DataFrame:
     response = requests.get(URL_MZA_2020.format(state_code))
@@ -34,6 +85,20 @@ def gather_data(state_code: int) -> pd.DataFrame:
         + df["MZA"].astype(str).str.zfill(3)
     )
     return df
+
+def gather_blocks(state_code: int, state_name: str, municipality_code: int) -> gpd.GeoDataFrame:
+    df_blocks = gather_data(state_code)
+    df_blocks = df_blocks.set_index('CVEGEO')
+    df_blocks = df_blocks.apply(pd.to_numeric, errors='coerce').fillna(0)
+    
+    vect_file = download_blocks(state_name, municipality_code)
+    gdf_vector_blocks = gpd.read_file(vect_file, engine='pyogrio').set_index('CVEGEO')
+    gdf_vector_blocks = gdf_vector_blocks[['geometry']]
+    os.remove(vect_file)
+    
+    gdf_blocks = gdf_vector_blocks.merge(df_blocks, left_index=True, right_index=True)
+    gdf_blocks = gpd.GeoDataFrame(gdf_blocks, geometry='geometry')
+    return gdf_blocks
 
 
 def process_blocks(
@@ -112,6 +177,9 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
+    gdf_blocks = gather_blocks(19, 'Nuevo_Leon', '794551077313')
+    print(gdf_blocks)
+    exit()
     df = gather_data(args.state_code)
 
     gdf_bounds = gpd.read_file(args.bounds_file, crs="EPSG:4326")
