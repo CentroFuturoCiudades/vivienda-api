@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.types import Float
 import psycopg2
 
-load_dotenv()
+from src.utils.utils import get_engine
 
 
 def get_args():
@@ -56,15 +56,7 @@ def clean_and_cast_types(df, mapping):
 if __name__ == "__main__":
     args = get_args()
 
-    user = os.getenv("POSTGRES_USER")
-    password = os.getenv("POSTGRES_PASSWORD")
-    host = os.getenv("POSTGRES_HOST", "reimagina_urbano_db")
-    port = os.getenv("POSTGRES_PORT")
-    db = os.getenv("POSTGRES_DB")
-
-    connection_string = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
-    print(connection_string)
-    engine = create_engine(connection_string)
+    engine = get_engine()
 
     # do a select all to check if the table exists
     with engine.connect() as conn:

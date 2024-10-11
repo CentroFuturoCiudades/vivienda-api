@@ -11,8 +11,8 @@ import os
 import io
 import re
 
-from src.utils.constants import CSV_PATH_MZA_2020, KEEP_COLUMNS, URL_MZA_2020, MAPPING_SCORE_VARS
-from src.utils.utils import normalize
+from src.scripts.utils.constants import CSV_PATH_MZA_2020, KEEP_COLUMNS, URL_MZA_2020, MAPPING_SCORE_VARS
+from src.scripts.utils.utils import normalize
 
 
 INEGI_GEO_BLOCKS_URL = 'https://www.inegi.org.mx/contenidos/productos/prod_serv/contenidos/espanol/bvinegi/productos/geografia/rural/SHP_2023/{state}/{municipality_code}_s.zip'

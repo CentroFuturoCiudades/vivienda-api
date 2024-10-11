@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 # import overturemaps
 
-from src.utils.utils import normalize, remove_outliers
+from src.scripts.utils.utils import normalize, remove_outliers
 
 
 def gather_overture_data(bbox: tuple) -> gpd.GeoDataFrame:

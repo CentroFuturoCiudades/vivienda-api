@@ -6,7 +6,7 @@ import osmnx as ox
 import pandas as pd
 from shapely.geometry import Polygon
 
-from src.utils.constants import (
+from src.scripts.utils.constants import (
     BUFFER_PARKING,
     EQUIPMENT_TAGS,
     GDFS_MAPPING,

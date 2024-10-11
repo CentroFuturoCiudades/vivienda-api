@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import re
 
-from src.utils.constants import AMENITIES_MAPPING, DENUE_TO_AMENITY_MAPPING
+from src.scripts.utils.constants import AMENITIES_MAPPING, DENUE_TO_AMENITY_MAPPING
 import numpy as np
 
 def assign_by_buffer(

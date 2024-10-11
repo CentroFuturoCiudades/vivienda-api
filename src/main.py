@@ -6,7 +6,6 @@ import tempfile
 from typing import Annotated, Any, Dict, List
 
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import numpy as np
 import osmnx as ox
 import pandana as pdna
@@ -30,7 +29,7 @@ import pickle
 from shapely.geometry import box
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from src.utils.constants import AMENITIES_MAPPING
+from src.scripts.utils.constants import AMENITIES_MAPPING
 from functools import lru_cache
 import os
 
@@ -46,6 +45,7 @@ async def root():
 
 
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+pool = ThreadPoolExecutor()
 
 # Split the origins by comma and remove any surrounding whitespace
 allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
@@ -62,8 +62,7 @@ def read_gdf_sync(filepath, bbox=None):
 
 async def read_gdf_async(filepath, bbox=None):
     loop = asyncio.get_running_loop()
-    with ThreadPoolExecutor() as pool:
-        result = await loop.run_in_executor(pool, read_gdf_sync, filepath, bbox)
+    result = await loop.run_in_executor(pool, read_gdf_sync, filepath, bbox)
     return result
 
 @app.get("/coords")
@@ -251,14 +250,14 @@ async def get_info(payload: Dict[Any, Any]):
             "parking_ratio": "mean",
             "wasteful_ratio": "mean",
             "underutilized_ratio": "mean",
-            "amenity_ratio": "mean",
+            # "amenity_ratio": "mean",
             "building_area": "sum",
             "unused_area": "sum", 
             "green_area": "sum",
             "parking_area": "sum",
             "wasteful_area": "sum",
             "underutilized_area": "sum",
-            "amenity_area": "sum",
+            # "amenity_area": "sum",
             "num_establishments": "sum",
             "num_workers": "sum",
             "minutes": "mean",
@@ -270,7 +269,7 @@ async def get_info(payload: Dict[Any, Any]):
             "puntuaje_hogar_digno": "mean",
             "graproes": "mean",
             "accessibility_score": "mean",
-            # "mean_slope": "mean"
+            "mean_slope": "mean"
         }
     )
     

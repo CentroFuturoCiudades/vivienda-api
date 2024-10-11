@@ -2,21 +2,17 @@ import argparse
 import os
 
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import osmnx as ox
 import pandana as pdna
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
-from src.utils.constants import (
+from src.scripts.utils.constants import (
     AMENITIES_MAPPING,
     MAX_ESTABLISHMENTS,
     WALK_RADIUS,
     WALK_SPEED,
 )
-from src.utils.utils import normalize
-from functools import lru_cache
 
 # TODO: Use beta with recommended radius of the amenities
 BETA_GRAVITY = {item['name']: 1 / (item['radius'] / 3) for item in AMENITIES_MAPPING}
@@ -121,6 +117,7 @@ def get_args():
 
 
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
     args = get_args()
 
     gdf_lots = gpd.read_file(

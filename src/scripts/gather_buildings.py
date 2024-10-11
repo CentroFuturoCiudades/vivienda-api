@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 import requests
 from geopandas import GeoDataFrame
 
-from utils.constants import BUILDING_CONFIDENCE
-from utils.utils import gdf_to_ee_polygon
+from src.scripts.utils.constants import BUILDING_CONFIDENCE
+from src.scripts.utils.utils import gdf_to_ee_polygon
 
 
 def process_buildings(gdf_bounds: GeoDataFrame) -> GeoDataFrame:

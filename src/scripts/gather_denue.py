@@ -9,15 +9,8 @@ import pandas as pd
 import requests
 from geopandas import GeoDataFrame
 
-from src.utils.constants import CSV_DENUE, DENUE, REGEX_PPL, WALK_RADIUS
-from src.utils.utils import SECTORS_MAP, fill, fit_to_boundaries
-
-
-def map_sector_to_sector(codigo_act: int) -> str:
-    for sector in SECTORS_MAP:
-        for low, high in sector["range"]:
-            if low <= codigo_act <= high:
-                return sector["sector"]
+from src.scripts.utils.constants import CSV_DENUE, DENUE, REGEX_PPL, WALK_RADIUS
+from src.scripts.utils.utils import fill, fit_to_boundaries, map_sector_to_sector
 
 
 def get_denue(gdf_bounds: GeoDataFrame, state_code: str) -> GeoDataFrame:

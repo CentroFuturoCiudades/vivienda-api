@@ -8,14 +8,11 @@ import requests
 import rioxarray
 from geopandas import GeoDataFrame
 
-from scripts.raster_to_geojson import to_gdf
-from utils.utils import gdf_to_ee_polygon
+from src.scripts.utils.utils import gdf_to_ee_polygon, to_gdf
 
 
 def process_green_area(gdf_bounds: GeoDataFrame) -> GeoDataFrame:
     ee.Initialize()
-    # ee.Authenticate()
-    # Get the medium and high vegetation
     ee_polygon = gdf_to_ee_polygon(gdf_bounds)
     image = ee.Image("JRC/GHSL/P2023A/GHS_BUILT_C/2018")
     image = image.clip(ee_polygon)
