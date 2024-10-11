@@ -32,6 +32,7 @@ CREATE TABLE lots (
     minutes FLOAT,
     gravity_score FLOAT,
     accessibility_score FLOAT,
+    mean_slope FLOAT,
     wasteful_area FLOAT,
     wasteful_ratio FLOAT,
     occupancy INTEGER,
