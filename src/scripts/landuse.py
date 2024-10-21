@@ -15,7 +15,14 @@ from src.scripts.utils.constants import (
     PARKING_TAGS,
     WALK_RADIUS,
     AMENITIES_FILE_MAPPING,
+    BOUNDS_FILE,
+    ESTABLISHMENTS_LOTS_FILE,
+    LANDUSE_LOTS_FILE,
+    ASSIGN_ESTABLISHMENTS_FILE,
+    BUILDING_FILE,
+    VEGETATION_FILE,
 )
+from src.scripts.utils.utils import load_gdf
 
 
 def cut_out_inner_polygons(gdf):
@@ -78,62 +85,22 @@ def overlay_multiple(
 def get_args():
     parser = argparse.ArgumentParser(
         description="Join establishments with lots")
-    parser.add_argument("bounds_file", type=str,
-                        help="The file with all the data")
-    parser.add_argument(
-        "lots_establishments_file", type=str, help="The file with all the data"
-    )
-    parser.add_argument("buildings_file", type=str,
-                        help="The file with all the data")
-    parser.add_argument(
-        "establishments_file", type=str, help="The file with all the data"
-    )
-    parser.add_argument(
-        "amenities_file", type=str, help="The file with all the data"
-    )
-    parser.add_argument("vegetation_file", type=str,
-                        help="The file with all the data")
-    parser.add_argument("output_folder", type=str,
-                        help="The file with all the data")
-    parser.add_argument("output_file", type=str,
-                        help="The file with all the data")
+    parser.add_argument("input_dir", type=str,
+                        help="The folder all the original data")
+    parser.add_argument("output_dir", type=str,
+                        help="The folder to save the output data")
     parser.add_argument("-v", "--view", action="store_true")
     return parser.parse_args()
 
-
-def load_gdf(file, gdf_bounds=None):
-    if gdf_bounds is None:
-        return gpd.read_file(file, engine="pyogrio").to_crs("EPSG:4326")
-    # bounding_box = gdf_bounds.total_bounds
-    # bbox = (bounding_box[0], bounding_box[1], bounding_box[2], bounding_box[3])
-    gdf = gpd.read_file(file, engine="pyogrio").to_crs("EPSG:4326")
-    gdf = gdf[gdf.intersects(gdf_bounds.unary_union)]
-    return gdf
-
-
+LANDUSE_FILE = "landuse_{}.fgb"
 if __name__ == "__main__":
     args = get_args()
 
-    gdf_bounds = gpd.read_file(args.bounds_file, crs="EPSG:4326")
+    gdf_bounds = gpd.read_file(f"{args.input_dir}/{BOUNDS_FILE}", crs="EPSG:4326")
     gdf_bounds = gdf_bounds.to_crs("EPSG:32614").buffer(WALK_RADIUS).to_crs("EPSG:4326")
-    gdf_denue = load_gdf(args.establishments_file)
-    gdf_lots = load_gdf(args.lots_establishments_file)
+    gdf_denue = load_gdf(f"{args.output_dir}/{ASSIGN_ESTABLISHMENTS_FILE}", gdf_bounds)
+    gdf_lots = load_gdf(f"{args.output_dir}/{ESTABLISHMENTS_LOTS_FILE}", gdf_bounds)
     gdf_lots["lot_area"] = gdf_lots.to_crs("EPSG:6933").area / 10_000
-    gdf_amenities = load_gdf(args.amenities_file, gdf_bounds)
-    gdf_amenities = gdf_amenities.rename({"NOM2_2_ACT": "amenity", "DESCRIP": "name", "AMBITO": "ambito"}, axis=1)[
-        ["amenity", "name", "geometry", "ambito"]]
-    # rename the amenities and remove the ones that are not in the mapping
-    gdf_amenities = gdf_amenities[gdf_amenities["amenity"].isin(
-        AMENITIES_FILE_MAPPING.keys())]
-    gdf_amenities["amenity"] = gdf_amenities["amenity"].replace(
-        AMENITIES_FILE_MAPPING)
-    gdf_denue_amenities = gdf_denue[gdf_denue["amenity"].notnull()].rename({
-        "ID_lot": "ID", "nom_estab": "name"}, axis=1)
-    gdf_amenities = gpd.GeoDataFrame(
-        pd.concat([gdf_amenities, gdf_denue_amenities],
-                  ignore_index=True),
-        crs="EPSG:4326",
-    )
 
     # Load the polygons for parking lots
     G_service_highways = ox.graph_from_polygon(
@@ -164,41 +131,35 @@ if __name__ == "__main__":
                          for poly in unified_geometry.geoms]
     gdf_parking = gpd.GeoDataFrame(geometry=external_polygons, crs="EPSG:4326")
 
-    gdf_buildings = load_gdf(args.buildings_file)
-    gdf_vegetation = load_gdf(args.vegetation_file).reset_index(drop=True)
+    gdf_buildings = load_gdf(f"{args.output_dir}/{BUILDING_FILE}")
+    gdf_vegetation = load_gdf(f"{args.output_dir}/{VEGETATION_FILE}").reset_index(drop=True)
     gdf_buildings = gdf_buildings[["geometry"]]
-
-    # print(gdf_amenities)
-    # gdf_amenities.plot(column="amenity", legend=True)
-    # plt.show()
-    gdf_amenities.to_file(args.output_folder.format("amenity"), engine="pyogrio")
 
     list_gdfs = [gdf_buildings, gdf_parking, gdf_vegetation]
     gdfs = overlay_multiple(gdf_lots, list_gdfs)
 
-    gdfs[0] = gdfs[0][["ID", "geometry", "lot_area"]]
-    gdfs[1] = gdfs[1][["ID", "geometry", "lot_area"]]
-    gdfs[2] = gdfs[2][["ID", "geometry", "lot_area"]]
-    gdfs[3] = gdfs[3][["ID", "geometry", "lot_area"]]
+    gdfs[0] = gdfs[0][["lot_id", "geometry", "lot_area"]]
+    gdfs[1] = gdfs[1][["lot_id", "geometry", "lot_area"]]
+    gdfs[2] = gdfs[2][["lot_id", "geometry", "lot_area"]]
+    gdfs[3] = gdfs[3][["lot_id", "geometry", "lot_area"]]
 
     for gdf, item in zip(gdfs, GDFS_MAPPING):
         column_area = f'{item["name"]}_area'
         column_ratio = f'{item["name"]}_ratio'
-        gdf = gdf.dissolve(by="ID")
+        gdf = gdf.dissolve(by="lot_id").reset_index()
         gdf[column_area] = gdf.to_crs("EPSG:6933").area / 10_000
         gdf[column_ratio] = gdf[column_area] / gdf["lot_area"]
-        gdf = gdf.reset_index()
-        gdf.to_file(args.output_folder.format(item["name"]), engine="pyogrio")
+        gdf.to_file(f"{args.output_dir}/{LANDUSE_FILE.format(item['name'])}", engine="pyogrio")
         gdf_lots = gdf_lots.merge(
-            gdf[["ID", column_area, column_ratio]],
-            on="ID",
+            gdf[["lot_id", column_area, column_ratio]],
+            on="lot_id",
             how="left",
         )
         gdf_lots[[column_area, column_ratio]] = gdf_lots[
             [column_area, column_ratio]
         ].fillna(0)
 
-    gdf_lots.to_file(args.output_file, engine="pyogrio")
+    gdf_lots.to_file(f"{args.output_dir}/{LANDUSE_LOTS_FILE}", engine="pyogrio")
 
     if args.view:
         fig, ax = plt.subplots()

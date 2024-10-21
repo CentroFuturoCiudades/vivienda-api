@@ -1,60 +1,18 @@
 -- Create the database
-CREATE DATABASE reimaginaurbanodb;
+CREATE DATABASE reimaginaurbano;
 
 -- Connect to the database
-\c reimaginaurbanodb;
+\c reimaginaurbano;
 
--- Drop the table if it already exists
+-- Drop the tables if they already exist
+DROP TABLE IF EXISTS blocks;
 DROP TABLE IF EXISTS lots;
+DROP TABLE IF EXISTS accessibility_trips;
 
--- Create the 'lots' table
-CREATE TABLE lots (
+-- Create the 'blocks' table
+CREATE TABLE blocks (
+    cvegeo VARCHAR(255) PRIMARY KEY,
     block_area FLOAT,
-    prom_ocup FLOAT,
-    pro_ocup_c FLOAT,
-    graproes FLOAT,
-    puntuaje_hogar_digno FLOAT,
-    pob_por_cuarto FLOAT,
-    area FLOAT,
-    num_workers INTEGER,
-    lot_area FLOAT,
-    unused_area FLOAT,
-    unused_ratio FLOAT,
-    green_area FLOAT,
-    green_ratio FLOAT,
-    amenity_area FLOAT,
-    amenity_ratio FLOAT,
-    parking_area FLOAT,
-    parking_ratio FLOAT,
-    building_area FLOAT,
-    building_ratio FLOAT,
-    distance FLOAT,
-    minutes FLOAT,
-    gravity_score FLOAT,
-    accessibility_score FLOAT,
-    mean_slope FLOAT,
-    wasteful_area FLOAT,
-    wasteful_ratio FLOAT,
-    occupancy INTEGER,
-    underutilized_area FLOAT,
-    underutilized_ratio FLOAT,
-    occupancy_density FLOAT,
-    home_density FLOAT,
-    combined_score FLOAT,
-    latitud FLOAT,
-    longitud FLOAT,
-    zoning VARCHAR(255),
-    max_cos FLOAT,
-    max_cus FLOAT,
-    min_cav FLOAT,
-    building_volume FLOAT,
-    building_volume_block FLOAT,
-    units_per_built_area FLOAT,
-    population INTEGER,
-    optimal_cav FLOAT,
-    diff_cav FLOAT,
-    id VARCHAR(255) PRIMARY KEY,
-    cvegeo VARCHAR(255),
     pobtot INTEGER,
     pobfem INTEGER,
     pobmas INTEGER,
@@ -89,6 +47,8 @@ CREATE TABLE lots (
     vivpar_hab INTEGER,
     vivpar_des INTEGER,
     ocupvivpar INTEGER,
+    prom_ocup FLOAT,
+    pro_ocup_c FLOAT,
     tvivparhab INTEGER,
     vph_1cuart INTEGER,
     vph_2cuart INTEGER,
@@ -110,6 +70,7 @@ CREATE TABLE lots (
     vph_spmvpi INTEGER,
     vph_cvj INTEGER,
     pafil_ipriv INTEGER,
+    graproes FLOAT,
     pcatolica INTEGER,
     pro_crieva INTEGER,
     potras_rel INTEGER,
@@ -117,7 +78,55 @@ CREATE TABLE lots (
     p_25a59_f INTEGER,
     p_25a59_m INTEGER,
     p_25a59 INTEGER,
+    puntuaje_hogar_digno FLOAT,
     total_cuartos INTEGER,
+    pob_por_cuarto FLOAT,
+    accessibility_score FLOAT,
+    minutes FLOAT,
+    node_ids BIGINT,
+    latitud FLOAT,
+    longitud FLOAT
+);
+
+-- Create the 'lots' table
+CREATE TABLE lots (
+    lot_id VARCHAR(255) PRIMARY KEY,
+    cvegeo VARCHAR(255),
+    block_area FLOAT,
+    prom_ocup FLOAT,
+    pro_ocup_c FLOAT,
+    graproes FLOAT,
+    lot_area FLOAT,
+    unused_area FLOAT,
+    unused_ratio FLOAT,
+    green_area FLOAT,
+    green_ratio FLOAT,
+    amenity_area FLOAT,
+    amenity_ratio FLOAT,
+    parking_area FLOAT,
+    parking_ratio FLOAT,
+    building_area FLOAT,
+    building_ratio FLOAT,
+    wasteful_area FLOAT,
+    wasteful_ratio FLOAT,
+    underutilized_area FLOAT,
+    underutilized_ratio FLOAT,
+    occupancy_density FLOAT,
+    home_density FLOAT,
+    combined_score FLOAT,
+    latitud FLOAT,
+    longitud FLOAT,
+    zoning VARCHAR(255),
+    max_cos FLOAT,
+    max_cus FLOAT,
+    min_cav FLOAT,
+    building_volume FLOAT,
+    building_volume_block FLOAT,
+    units_per_built_area FLOAT,
+    population INTEGER,
+    optimal_cav FLOAT,
+    diff_cav FLOAT,
+    num_workers INTEGER,
     num_establishments INTEGER,
     num_properties INTEGER,
     num_floors FLOAT,
@@ -125,5 +134,24 @@ CREATE TABLE lots (
     diff_height FLOAT,
     max_home_units INTEGER,
     units_estimate INTEGER,
-    potential_new_units INTEGER
+    potential_new_units INTEGER,
+    mean_slope FLOAT,
+    minutes FLOAT
 );
+
+CREATE TABLE accessibility_trips (
+    origin_id BIGINT,
+    destination_id BIGINT,
+    num_amenity INTEGER,
+    amenity VARCHAR(255),
+    distance FLOAT,
+    minutes FLOAT,
+    gravity FLOAT,
+    population FLOAT,
+    attraction FLOAT,
+    pob_reach FLOAT,
+    accessibility_score FLOAT,
+    node_ids VARCHAR(255)
+);
+
+CREATE INDEX id ON accessibility_trips (origin_id, destination_id, num_amenity);

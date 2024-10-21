@@ -1,19 +1,20 @@
 import os
 from functools import lru_cache
 
-import ee
 import geopandas as gpd
+from typing import Optional
 import numpy as np
 import osmnx as ox
 import pandas as pd
+import pyproj
+from pyproj import Transformer
 from dotenv import load_dotenv
 from geopandas import GeoDataFrame
 from shapely.geometry import box
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
 from sqlalchemy import create_engine
 import urllib.parse
 from src.utils.files import get_file, get_blob_url
+from shapely.geometry import Point
 
 APP_ENV = os.getenv('APP_ENV', 'local')
 load_dotenv(f'.env.{APP_ENV}')
@@ -28,7 +29,7 @@ def row2cell(row, res_xy):
     minY = row["y"] + (res_y / 2)
     maxY = row["y"] - (res_y / 2)
     # Build squared polygon
-    polygon = geometry.box(minX, minY, maxX, maxY)
+    polygon = box(minX, minY, maxX, maxY)
     return polygon
 
 
@@ -41,11 +42,13 @@ def row2point(row, res_xy):
 
 def to_gdf(raster):
     """Transform a raster to a GeoDataFrame"""
-    raster_geotable = raster.to_series().reset_index().rename(columns={0: "Value"})
+    raster_geotable = raster.to_series(
+    ).reset_index().rename(columns={0: "Value"})
     # Keep only cells with information
     raster_geotable = raster_geotable.query("Value > 0")
     # Build polygons for selected cells
-    polygons = raster_geotable.apply(row2cell, res_xy=raster.rio.resolution(), axis=1)
+    polygons = raster_geotable.apply(
+        row2cell, res_xy=raster.rio.resolution(), axis=1)
     # Convert to GeoSeries
     features = polygons.pipe(gpd.GeoSeries, crs=raster.rio.crs)
     gdf = GeoDataFrame.from_features(features, crs=raster.rio.crs)
@@ -79,6 +82,9 @@ def remove_outliers(item, lower, upper):
 
 
 def autocluster(items, range_clusters=(2, 11), sort_column=None):
+    from sklearn.cluster import KMeans
+    from sklearn.metrics import silhouette_score
+    
     best_n_clusters = None
     best_score = -1
 
@@ -144,12 +150,37 @@ def join_near(df1, df2, aggs, max_distance=0.00005):
     gdf_final = gdf_final.drop(columns=["index_right"])
     return gdf_final
 
+# 32614
+# 6933
+def convert_distance(distance, crs_src="EPSG:3857", crs_dst="EPSG:4326") -> float:
+    transformer = Transformer.from_crs(
+        crs_from=crs_src, crs_to=crs_dst, always_xy=True)
+    initial_point = Point(0, 0)
+
+    x_src, y_src = transformer.transform(initial_point.x, initial_point.y)
+    x_new = x_src + distance
+
+    new_longitude, new_latitude = transformer.transform(
+        x_new, y_src, direction=pyproj.enums.TransformDirection.INVERSE)
+    distance_in_degrees = new_longitude - initial_point.x
+
+    return distance_in_degrees
+
+
+def load_gdf(file: str, gdf_bounds: Optional[gpd.GeoDataFrame]=None) -> gpd.GeoDataFrame:
+    if gdf_bounds is None:
+        return gpd.read_file(file, engine="pyogrio").to_crs("EPSG:4326")
+    gdf = gpd.read_file(file, engine="pyogrio").to_crs("EPSG:4326")
+    gdf = gdf[gdf.intersects(gdf_bounds.unary_union)]
+    return gdf
+
 
 def map_sector_to_sector(codigo_act: int) -> str:
     for sector in SECTORS_MAP:
         for low, high in sector["range"]:
             if low <= codigo_act <= high:
                 return sector["sector"]
+
 
 SECTORS_MAP = [
     {"range": [(11, 11)], "sector": "primario"},
@@ -165,6 +196,7 @@ SECTORS_MAP = [
 
 
 def gdf_to_ee_polygon(gdf: gpd.GeoDataFrame):
+    import ee
     polygon_geojson = gdf.geometry.iloc[0].__geo_interface__
     geom_type = polygon_geojson["type"]
 
@@ -172,7 +204,8 @@ def gdf_to_ee_polygon(gdf: gpd.GeoDataFrame):
         coords = polygon_geojson["coordinates"][0]
     elif geom_type == "MultiPolygon":
         # This flattens the list of lists for multipolygon to fit into ee.Geometry.Polygon
-        coords = [coord for part in polygon_geojson["coordinates"] for coord in part[0]]
+        coords = [coord for part in polygon_geojson["coordinates"]
+                  for coord in part[0]]
     else:
         raise ValueError(f"Unsupported geometry type: {geom_type}")
 

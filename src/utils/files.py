@@ -3,6 +3,7 @@ import requests
 import time
 import json
 from urllib.parse import urlparse
+import shutil
 
 TTL = 3600 * 15 * 24  # seconds
 BASE_LOCATION = os.getenv("BASE_FILE_LOCATION", "./temp")
@@ -42,10 +43,17 @@ def get_file(url):
 
 BLOB_URL = "https://reimaginaurbanostorage.blob.core.windows.net"
 def get_blob_url(file_name: str) -> str:
+    if os.getenv("ENVIRONMENT") == "local":
+        return f"data/_primavera/final/{file_name}"
     access_token = os.getenv("BLOB_TOKEN")
     return f"{BLOB_URL}/primavera/{file_name}?{access_token}"
 
 def download_file(url):
+    if os.getenv("ENVIRONMENT") == "local":
+        filename = os.path.basename(urlparse(url).path)
+        if not os.path.exists(f"{BASE_LOCATION}/{filename}"):
+            shutil.copy(url, BASE_LOCATION)
+        return url
     os.makedirs(BASE_LOCATION, exist_ok=True)
 
     # Parse the URL to get the file name

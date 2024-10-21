@@ -9,6 +9,7 @@ import rioxarray
 from geopandas import GeoDataFrame
 
 from src.scripts.utils.utils import gdf_to_ee_polygon, to_gdf
+from src.scripts.utils.constants import BOUNDS_FILE, VEGETATION_FILE
 
 
 def process_green_area(gdf_bounds: GeoDataFrame) -> GeoDataFrame:
@@ -35,18 +36,22 @@ def process_green_area(gdf_bounds: GeoDataFrame) -> GeoDataFrame:
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Join establishments with lots")
-    parser.add_argument("bounds_file", type=str, help="The file with all the data")
-    parser.add_argument("output_file", type=str, help="The file with all the data")
+    parser = argparse.ArgumentParser(
+        description="Join establishments with lots")
+    parser.add_argument("input_dir", type=str,
+                        help="The folder all the original data")
+    parser.add_argument("output_dir", type=str,
+                        help="The folder to save the output data")
     parser.add_argument("-v", "--view", action="store_true")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = get_args()
-    gdf_bounds = gpd.read_file(args.bounds_file, crs="EPSG:4326")
+    gdf_bounds = gpd.read_file(
+        f"{args.input_dir}/{BOUNDS_FILE}", crs="EPSG:4326")
     gdf_builtup = process_green_area(gdf_bounds)
-    gdf_builtup.to_file(args.output_file)
+    gdf_builtup.to_file(f"{args.output_dir}/{VEGETATION_FILE}")
     if args.view:
         gdf_builtup.plot()
         plt.show()

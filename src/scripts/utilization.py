@@ -6,9 +6,10 @@ import time
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
-# import overturemaps
+import pandas as pd
 
 from src.scripts.utils.utils import normalize, remove_outliers
+from src.scripts.utils.constants import LANDUSE_LOTS_FILE, ACCESSIBILITY_BLOCKS_FILE, BOUNDS_FILE, ZONING_REGULATIONS_FILE, UTILIZATION_LOTS_FILE
 
 
 def gather_overture_data(bbox: tuple) -> gpd.GeoDataFrame:
@@ -34,38 +35,34 @@ def get_zone_info(row, item):
 
 def get_args():
     parser = argparse.ArgumentParser(description="Join establishments with lots")
-    parser.add_argument("bounds_file", type=str, help="The file with all the data")
-    parser.add_argument(
-        "accessibility_file", type=str, help="The file with all the data"
-    )
-    parser.add_argument(
-        "zonification_file", type=str, help="The file with all the data"
-    )
-    parser.add_argument(
-        "zoning_regulations_file", type=str, help="The file with all the data"
-    )
-    parser.add_argument("output_file", type=str, help="The file with all the data")
+    parser.add_argument("input_dir", type=str,
+                        help="The folder all the original data")
+    parser.add_argument("output_dir", type=str,
+                        help="The folder to save the output data")
     parser.add_argument("-v", "--view", action="store_true")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = get_args()
-    ZONING_REGULATIONS = json.load(open(args.zoning_regulations_file, "r"))
+    ZONING_REGULATIONS = json.load(open(f"{args.input_dir}/{ZONING_REGULATIONS_FILE}", "r"))
     for zoning, regulations in ZONING_REGULATIONS.items():
         for i in regulations:
             if "IVE" in i and "density" not in i:
                 i["density"] = i["CUS"] * 10_000 / i["IVE"]
-    gdf_lots = gpd.read_file(args.accessibility_file, engine="pyogrio").to_crs("EPSG:4326")
+    gdf_lots = gpd.read_file(f"{args.output_dir}/{LANDUSE_LOTS_FILE}", engine="pyogrio").to_crs("EPSG:4326")
+    gdf_blocks = gpd.read_file(f"{args.output_dir}/{ACCESSIBILITY_BLOCKS_FILE}", engine="pyogrio").to_crs("EPSG:4326")
+    gdf_lots = pd.merge(gdf_lots.drop(columns=["block_area"]), gdf_blocks.drop(columns=["geometry"]), on="cvegeo", how="left")
+    gdf_lots = gpd.GeoDataFrame(gdf_lots, crs="EPSG:4326")
 
-    gdf_lots["num_properties"] = gdf_lots["TVIVHAB"] + gdf_lots["num_establishments"]
+    gdf_lots["num_properties"] = gdf_lots["tvivhab"] + gdf_lots["num_establishments"]
     gdf_lots["wasteful_area"] = (
         gdf_lots["unused_area"] + gdf_lots["parking_area"] + gdf_lots["green_area"]
     )
     gdf_lots["wasteful_ratio"] = (
         gdf_lots["unused_ratio"] + gdf_lots["parking_ratio"] + gdf_lots["green_ratio"]
     )
-    gdf_lots["occupancy"] = gdf_lots["POBTOT"] + gdf_lots["num_workers"]
+    gdf_lots["occupancy"] = gdf_lots["pobtot"] + gdf_lots["num_workers"]
     gdf_lots["underutilized_area"] = gdf_lots["wasteful_area"] / gdf_lots["occupancy"]
     gdf_lots["underutilized_area"] = remove_outliers(
         gdf_lots["underutilized_area"], 0, 0.9
@@ -93,7 +90,7 @@ if __name__ == "__main__":
 
     gdf_lots["home_density"] = gdf_lots.apply(
         lambda x: (
-            (x["VIVTOT"] + x["num_workers"]) / x["building_area"]
+            (x["vivtot"] + x["num_workers"]) / x["building_area"]
             if x["building_area"] > 0
             else 0
         ),
@@ -109,29 +106,9 @@ if __name__ == "__main__":
     gdf_lots["latitud"] = gdf_lots["geometry"].centroid.y
     gdf_lots["longitud"] = gdf_lots["geometry"].centroid.x
 
-    gdf_zonfication = gpd.read_file(args.zonification_file, crs="EPSG:4326").to_crs(
-        epsg=4326
-    )
-    gdf_zonfication = gdf_zonfication[["ID", "zoning", "geometry"]]
-
-    gdf_lots["ID"] = gdf_lots["ID"].apply(lambda x: int(float(x))).astype(str)
-    gdf_lots = gdf_lots[gdf_lots.geometry.is_valid]
-
-    # merge by ID
-    gdf_lots = gdf_lots.merge(gdf_zonfication, left_on="ID", right_on="ID", how="inner")
-    gdf_lots = gpd.GeoDataFrame(
-        gdf_lots.drop(columns=["geometry_x", "geometry_y"]),
-        geometry=gdf_lots.geometry_x,
-    )
-
-    start = time.time()
-    gdf_bounds = gpd.read_file(args.bounds_file, crs="EPSG:4326")
+    gdf_bounds = gpd.read_file(f"{args.input_dir}/{BOUNDS_FILE}", crs="EPSG:4326")
     bounds = gdf_bounds.geometry[0]
     bbox = bounds.bounds
-    # gdf = gather_overture_data(bbox)
-    # gdf_temp = gdf_lots.overlay(gdf, how="intersection")
-    # gdf_temp = gdf_temp.groupby("ID").agg({"num_floors": "max"})
-    # gdf_lots = gdf_lots.merge(gdf_temp, on="ID")
     gdf_lots["num_floors"] = 1
 
     gdf_lots["max_COS"] = gdf_lots.apply(lambda x: get_zone_info(x, "COS"), axis=1)
@@ -162,11 +139,11 @@ if __name__ == "__main__":
         lambda x: 1 if x < 1 else x
     )
     gdf_lots["building_volume"] = gdf_lots["building_area"] * gdf_lots["num_floors"]
-    gdf_lots["building_volume_block"] = gdf_lots.groupby("CVEGEO")[
+    gdf_lots["building_volume_block"] = gdf_lots.groupby("cvegeo")[
         "building_volume"
     ].transform("sum")
     gdf_lots["units_per_built_area"] = (
-        gdf_lots["VIVTOT"] / gdf_lots["building_volume_block"]
+        gdf_lots["vivtot"] / gdf_lots["building_volume_block"]
     )
     gdf_lots["units_estimate"] = (
         gdf_lots["units_per_built_area"] * gdf_lots["building_area"]
@@ -176,7 +153,7 @@ if __name__ == "__main__":
         .fillna(1)
         .apply(lambda x: math.ceil(x) if x < np.inf else np.inf)
     )
-    gdf_lots['population'] = gdf_lots['PROM_OCUP'] * gdf_lots['units_estimate']
+    gdf_lots['population'] = gdf_lots['prom_ocup'] * gdf_lots['units_estimate']
     gdf_lots["potential_new_units"] = (
         gdf_lots["max_home_units"] - gdf_lots["units_estimate"]
     )
@@ -185,8 +162,9 @@ if __name__ == "__main__":
     gdf_lots["diff_CAV"] = gdf_lots["min_CAV"] - (
         gdf_lots["green_ratio"] + gdf_lots["unused_ratio"] + gdf_lots["parking_ratio"]
     )
+    print(gdf_lots.columns)
 
-    gdf_lots.to_file(args.output_file, engine="pyogrio")
+    gdf_lots.to_file(f"{args.output_dir}/{UTILIZATION_LOTS_FILE}", engine="pyogrio")
 
     if args.view:
         fig, ax = plt.subplots(ncols=3, figsize=(30, 30))
