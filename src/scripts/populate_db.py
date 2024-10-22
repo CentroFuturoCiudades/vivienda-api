@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.types import Float
 import psycopg2
+from tqdm import tqdm
 
 from src.utils.db import get_engine
 
@@ -29,12 +30,12 @@ def clean_and_cast_types(df, mapping):
     # Apply casting and handle problematic float values
     for column in df.columns:
         if column in mapping:
-            if mapping[column] == str:
+            if mapping[column] in ["object", str]:
                 df[column] = df[column].astype(str)
-            elif mapping[column] == int:
+            elif mapping[column] in ["int64", "int", int]:
                 # Coerce non-integer values to NaN and downcast
                 df[column] = pd.to_numeric(df[column], errors="coerce", downcast="integer")
-            elif mapping[column] == float:
+            elif mapping[column] in ["float64", "float", float]:
                 # Coerce non-float values to NaN
                 df[column] = pd.to_numeric(df[column], errors="coerce")
                 # Round float columns to 6 decimal places to avoid precision issues
@@ -51,183 +52,162 @@ def clean_and_cast_types(df, mapping):
     
     return df
 
+
+def process_in_chunks(file, table_name, engine, index_column, mapping, chunk_size=50000):
+    # Initialize a chunk iterator
+    chunks = pd.read_csv(file, chunksize=chunk_size, dtype=mapping)
+    metadata = MetaData()
+    _Table = Table(table_name, metadata, autoload_with=engine)
+    _Table.__table__.drop(engine)
+    _Table.__table__.create(engine)
+
+    # use progress bar
+    for chunk in tqdm(chunks):
+
+        # Set the index for the chunk
+        chunk = chunk.set_index(index_column)
+
+        # Clean and cast types as needed
+        chunk = clean_and_cast_types(chunk, mapping)
+
+        # Append the chunk to the table in the database
+        chunk.to_sql(
+            table_name,
+            engine,
+            if_exists="append",
+            index_label=index_column
+        )
+
+    # Query and print the full data from the table
+    data = pd.read_sql_query(f"SELECT * FROM {table_name}", engine)
+    print(data)
+
+
 if __name__ == "__main__":
     args = get_args()
 
     mapping_lots = {
-        "cvegeo": str,
-        "lot_area": float,
-        "num_workers": int,
-        "unused_area": float,
-        "unused_ratio": float,
-        "green_area": float,
-        "green_ratio": float,
-        "amenity_area": float,
-        "amenity_ratio": float,
-        "parking_area": float,
-        "parking_ratio": float,
-        "building_area": float,
-        "building_ratio": float,
-        "wasteful_area": float,
-        "wasteful_ratio": float,
-        "underutilized_area": float,
-        "underutilized_ratio": float,
-        "occupancy_density": float,
-        "home_density": float,
-        "combined_score": float,
-        "latitud": float,
-        "longitud": float,
-        "zoning": str,
-        "max_COS": float,
-        "max_CUS": float,
-        "min_CAV": float,
-        "building_volume": float,
-        "building_volume_block": float,
-        "units_per_built_area": float,
-        "population": int,
-        "optimal_CAV": float,
-        "diff_CAV": float,
-        "num_establishments": int,
-        "num_properties": int,
-        "num_floors": float,
-        "max_height": float,
-        "diff_height": float,
-        "max_home_units": int,
-        "units_estimate": int,
-        "potential_new_units": int,
-        "mean_slope": float,
+        "lot_id": "object",
+        "cvegeo": "object",
+        "block_area": "float64",
+        "prom_ocup": "float64",
+        "pro_ocup_c": "float64",
+        "graproes": "float64",
+        "lot_area": "float64",
+        "unused_area": "float64",
+        "unused_ratio": "float64",
+        "green_area": "float64",
+        "green_ratio": "float64",
+        "amenity_area": "float64",
+        "amenity_ratio": "float64",
+        "parking_area": "float64",
+        "parking_ratio": "float64",
+        "building_area": "float64",
+        "building_ratio": "float64",
+        "wasteful_area": "float64",
+        "wasteful_ratio": "float64",
+        "underutilized_area": "float64",
+        "underutilized_ratio": "float64",
+        "occupancy_density": "float64",
+        "home_density": "float64",
+        "combined_score": "float64",
+        "latitud": "float64",
+        "longitud": "float64",
+        "zoning": "object",
+        "max_cos": "float64",
+        "max_cus": "float64",
+        "min_cav": "float64",
+        "building_volume": "float64",
+        "building_volume_block": "float64",
+        "units_per_built_area": "float64",
+        "population": "float64",
+        "optimal_cav": "float64",
+        "diff_cav": "float64",
+        "num_workers": "float64",
+        "num_establishments": "float64",
+        "num_properties": "float64",
+        "num_floors": "float64",
+        "max_height": "float64",
+        "diff_height": "float64",
+        "max_home_units": "int64",
+        "units_estimate": "int64",
+        "potential_new_units": "int64",
+        "mean_slope": "float64",
+        "minutes": "float64"
     }
     mapping_blocks = {
-        'block_area': float,
-        'pobtot': int,
-        'pobfem': int,
-        'pobmas': int,
-        'p_0a2': int,
-        'p_0a2_f': int,
-        'p_0a2_m': int,
-        'p_3a5': int,
-        'p_3a5_f': int,
-        'p_3a5_m': int,
-        'p_6a11': int,
-        'p_6a11_f': int,
-        'p_6a11_m': int,
-        'p_12a14': int,
-        'p_12a14_f': int,
-        'p_12a14_m': int,
-        'p_15a17': int,
-        'p_15a17_f': int,
-        'p_15a17_m': int,
-        'p_18a24': int,
-        'p_18a24_f': int,
-        'p_18a24_m': int,
-        'p_60ymas': int,
-        'p_60ymas_f': int,
-        'p_60ymas_m': int,
-        'pea': int,
-        'pe_inac': int,
-        'pocupada': int,
-        'pdesocup': int,
-        'vivtot': int,
-        'tvivhab': int,
-        'tvivpar': int,
-        'vivpar_hab': int,
-        'vivpar_des': int,
-        'ocupvivpar': int,
-        'prom_ocup': float,
-        'pro_ocup_c': float,
-        'tvivparhab': int,
-        'vph_1cuart': int,
-        'vph_2cuart': int,
-        'vph_3ymasc': int,
-        'vph_pisodt': int,
-        'vph_tinaco': int,
-        'vph_excsa': int,
-        'vph_drenaj': int,
-        'vph_c_serv': int,
-        'vph_refri': int,
-        'vph_lavad': int,
-        'vph_autom': int,
-        'vph_tv': int,
-        'vph_pc': int,
-        'vph_telef': int,
-        'vph_cel': int,
-        'vph_inter': int,
-        'vph_stvp': int,
-        'vph_spmvpi': int,
-        'vph_cvj': int,
-        'pafil_ipriv': int,
-        'graproes': float,
-        'pcatolica': int,
-        'pro_crieva': int,
-        'potras_rel': int,
-        'psin_relig': int,
-        'block_area': int,
-        'p_25a59_f': int,
-        'p_25a59_m': int,
-        'p_25a59': int,
-        'puntuaje_hogar_digno': float,
-        'total_cuartos': int,
-        'pob_por_cuarto': float,
-        'accessibility_score': float,
-        'minutes': float,
-        'latitud': float,
-        'longitud': float,
-        "node_ids": int,
+        "cvegeo": "object",
+        "block_area": "float64",
+        "pobtot": "int64",
+        "pobfem": "int64",
+        "pobmas": "int64",
+        "p_0a2": "int64",
+        "p_0a2_f": "int64",
+        "p_0a2_m": "int64",
+        "p_3a5": "int64",
+        "p_3a5_f": "int64",
+        "p_3a5_m": "int64",
+        "p_6a11": "int64",
+        "p_6a11_f": "int64",
+        "p_6a11_m": "int64",
+        "p_12a14": "int64",
+        "p_12a14_f": "int64",
+        "p_12a14_m": "int64",
+        "p_15a17": "int64",
+        "p_15a17_f": "int64",
+        "p_15a17_m": "int64",
+        "p_18a24": "int64",
+        "p_18a24_f": "int64",
+        "p_18a24_m": "int64",
+        "p_60ymas": "int64",
+        "p_60ymas_f": "int64",
+        "p_60ymas_m": "int64",
+        "pea": "int64",
+        "pe_inac": "int64",
+        "pocupada": "int64",
+        "pdesocup": "int64",
+        "vivtot": "int64",
+        "tvivhab": "int64",
+        "tvivpar": "int64",
+        "vivpar_hab": "int64",
+        "vivpar_des": "int64",
+        "ocupvivpar": "int64",
+        "prom_ocup": "float64",
+        "pro_ocup_c": "float64",
+        "tvivparhab": "int64",
+        "vph_1cuart": "int64",
+        "vph_2cuart": "int64",
+        "vph_3ymasc": "int64",
+        "vph_pisodt": "int64",
+        "vph_tinaco": "int64",
+        "vph_excsa": "int64",
+        "vph_drenaj": "int64",
+        "vph_c_serv": "int64",
+        "vph_refri": "int64",
+        "vph_lavad": "int64",
+        "vph_autom": "int64",
+        "node_ids": "int64",
     }
     mapping_trips = {
-        "origin_id": int,
-        "destination_id": int,
-        "num_amenity": int,
-        "amenity": str,
-        "distance": float,
-        "minutes": float,
-        "gravity": float,
-        "population": int,
-        "attraction": float,
-        "pob_reach": float,
-        "accessibility_score": float,
-        "node_ids": str,
+        "origin_id": "int64",
+        "num_amenity": "int64",
+        "distance": "float64",
+        "destination_id": "int64",
+        "population": "float64",
+        "amenity": "object",
+        "attraction": "float64",
+        "gravity": "float64",
+        "pob_reach": "float64",
+        "minutes": "float64",
     }
 
     engine = get_engine()
 
     if args.lots_file:
-        df_lots = pd.read_csv(args.lots_file)
-        df_lots = df_lots.set_index("lot_id")
-        df_lots = clean_and_cast_types(df_lots, mapping_lots)
-        df_lots.to_sql(
-            "lots",
-            engine,
-            if_exists="append",
-            index_label="lot_id",
-        )
-
-        data = pd.read_sql_query("SELECT * FROM lots", engine)
-        print(data)
+        process_in_chunks(args.lots_file, "lots", engine, index_column="lot_id", mapping=mapping_lots)
 
     if args.blocks_file:
-        df_blocks = pd.read_csv(args.blocks_file)
-        df_blocks = df_blocks.set_index("cvegeo")
-        df_blocks = clean_and_cast_types(df_blocks, mapping_blocks)
-        df_blocks.to_sql(
-            "blocks",
-            engine,
-            if_exists="append",
-            index_label="cvegeo",
-        )
-
-        data = pd.read_sql_query("SELECT * FROM blocks", engine)
-        print(data)
+        process_in_chunks(args.blocks_file, "blocks", engine, index_column="cvegeo", mapping=mapping_blocks)
 
     if args.accessibility_file:
-        df_accessibility = pd.read_csv(args.accessibility_file)
-        df_accessibility = df_accessibility.set_index("origin_id")
-        df_accessibility = clean_and_cast_types(df_accessibility, mapping_trips)
-        df_accessibility.to_sql(
-            "accessibility_trips",
-            engine,
-            if_exists="append",
-        )
-
-        data = pd.read_sql_query("SELECT * FROM accessibility_trips", engine)
-        print(data)
+        process_in_chunks(args.accessibility_file, "accessibility_trips", engine, index_column="origin_id", mapping=mapping_trips)
