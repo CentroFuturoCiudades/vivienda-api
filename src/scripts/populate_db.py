@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.types import Float
 import psycopg2
 from tqdm import tqdm
+from sqlalchemy import MetaData, Table
 
 from src.utils.db import get_engine
 
@@ -55,11 +56,11 @@ def clean_and_cast_types(df, mapping):
 
 def process_in_chunks(file, table_name, engine, index_column, mapping, chunk_size=50000):
     # Initialize a chunk iterator
-    chunks = pd.read_csv(file, chunksize=chunk_size, dtype=mapping)
     metadata = MetaData()
     _Table = Table(table_name, metadata, autoload_with=engine)
-    _Table.__table__.drop(engine)
-    _Table.__table__.create(engine)
+    _Table.drop(engine)
+    _Table.create(engine)
+    chunks = pd.read_csv(file, chunksize=chunk_size, dtype=mapping)
 
     # use progress bar
     for chunk in tqdm(chunks):
