@@ -192,7 +192,7 @@ if __name__ == "__main__":
     engine = get_engine()
 
     if args.lots_file:
-        df_lots = pd.read_csv(args.lots_file, low_memory=False)
+        df_lots = pd.read_csv(args.lots_file)
         df_lots = df_lots.set_index("lot_id")
         df_lots = clean_and_cast_types(df_lots, mapping_lots)
         df_lots.to_sql(
@@ -206,7 +206,7 @@ if __name__ == "__main__":
         print(data)
 
     if args.blocks_file:
-        df_blocks = pd.read_csv(args.blocks_file, low_memory=False)
+        df_blocks = pd.read_csv(args.blocks_file)
         df_blocks = df_blocks.set_index("cvegeo")
         df_blocks = clean_and_cast_types(df_blocks, mapping_blocks)
         df_blocks.to_sql(
@@ -220,7 +220,7 @@ if __name__ == "__main__":
         print(data)
 
     if args.accessibility_file:
-        df_accessibility = pd.read_csv(args.accessibility_file, low_memory=False)
+        df_accessibility = pd.read_csv(args.accessibility_file)
         df_accessibility = df_accessibility.set_index("origin_id")
         df_accessibility = clean_and_cast_types(df_accessibility, mapping_trips)
         df_accessibility.to_sql(
