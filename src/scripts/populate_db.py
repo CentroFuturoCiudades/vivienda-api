@@ -163,7 +163,7 @@ if __name__ == "__main__":
         "p_60ymas": "int64",
         "p_60ymas_f": "int64",
         "p_60ymas_m": "int64",
-        "graproes": "int64",
+        "graproes": "float64",
         "pea": "int64",
         "pe_inac": "int64",
         "pocupada": "int64",
