@@ -93,9 +93,6 @@ CREATE TABLE lots (
     lot_id VARCHAR(255) PRIMARY KEY,
     cvegeo VARCHAR(255),
     block_area FLOAT,
-    prom_ocup FLOAT,
-    pro_ocup_c FLOAT,
-    graproes FLOAT,
     lot_area FLOAT,
     unused_area FLOAT,
     unused_ratio FLOAT,
@@ -135,8 +132,7 @@ CREATE TABLE lots (
     max_home_units INTEGER,
     units_estimate INTEGER,
     potential_new_units INTEGER,
-    mean_slope FLOAT,
-    minutes FLOAT
+    mean_slope FLOAT
 );
 
 CREATE TABLE accessibility_trips (
