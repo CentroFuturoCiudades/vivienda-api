@@ -178,6 +178,7 @@ if __name__ == "__main__":
         "prom_ocup": "float64",
         "pro_ocup_c": "float64",
         "tvivparhab": "int64",
+        "vph_pc": "int64",
         "vph_1cuart": "int64",
         "vph_2cuart": "int64",
         "vph_3ymasc": "int64",
