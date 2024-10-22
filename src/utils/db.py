@@ -90,10 +90,6 @@ METRIC_MAPPING = {
     },
 }
 
-APP_ENV = os.getenv('APP_ENV', 'local')
-load_dotenv(f'.env.{APP_ENV}')
-
-
 @lru_cache()
 def get_engine():
     user = os.getenv("POSTGRES_USER")

@@ -27,6 +27,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      ENVIRONMENT: "development"
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_HOST: reimagina_urbano_db
