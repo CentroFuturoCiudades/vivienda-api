@@ -4,7 +4,7 @@ import os
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.types import Float
 import psycopg2
 from tqdm import tqdm
@@ -57,9 +57,10 @@ def clean_and_cast_types(df, mapping):
 def process_in_chunks(file, table_name, engine, index_column, mapping, chunk_size=50000):
     # Initialize a chunk iterator
     metadata = MetaData()
-    _Table = Table(table_name, metadata, autoload_with=engine)
-    _Table.drop(engine)
-    _Table.create(engine)
+    # drop only if table exists
+    if inspect(engine).has_table(table_name):
+        _Table = Table(table_name, metadata, autoload_with=engine)
+        _Table.drop(engine)
     chunks = pd.read_csv(file, chunksize=chunk_size, dtype=mapping)
 
     # use progress bar
@@ -93,7 +94,7 @@ if __name__ == "__main__":
         "block_area": "float64",
         "prom_ocup": "float64",
         "pro_ocup_c": "float64",
-        "graproes": "float64",
+        "graproes": "int64",
         "lot_area": "float64",
         "unused_area": "float64",
         "unused_ratio": "float64",
