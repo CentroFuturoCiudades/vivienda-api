@@ -24,6 +24,7 @@ from shapely.geometry import box
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
+from shapely.geometry import shape
 
 from src.utils.files import get_file, get_blob_url
 from src.utils.db import query_metrics, select_minutes, MAPPING_REDUCE_FUNCS, METRIC_MAPPING
@@ -81,19 +82,25 @@ async def root():
 
 
 @app.get("/coords")
-async def get_coordinates():
-    gdf_bounds = await read_gdf_async(get_file(get_blob_url("bounds.fgb")), None)
+async def get_coordinates(project: str = None):
+    if not project :
+        project = "primavera"
+    
+    gdf_bounds = await read_gdf_async(get_file(get_blob_url(f"{project}_bounds.fgb")), None)
     geom = gdf_bounds.unary_union
-    return {"latitud": geom.centroid.y, "longitud": geom.centroid.x}
+    return {"latitude": geom.centroid.y, "longitude": geom.centroid.x}
 
 
 @app.post("/query")
 async def custom_query(payload: Dict[Any, Any]):
     metric = payload.get("metric")
+
     condition = payload.get("condition")
     coordinates = payload.get("coordinates")
     proximity_mapping = payload.get("accessibility_info")
     level = payload.get("level", "blocks")
+    project = payload.get("project")
+
     id = "cvegeo" if level == "blocks" else "lot_id"
 
     if metric == "minutes" or metric == "accessibility_score":
@@ -103,7 +110,24 @@ async def custom_query(payload: Dict[Any, Any]):
         df = df.rename(columns={"minutes": "value"})
         return df.to_dict(orient="records")
 
-    ids = await get_ids(coordinates, level)
+
+   
+    if (not coordinates or len(coordinates) == 0) and project:
+
+        gdf_bounds = await read_gdf_async(get_file(get_blob_url(f"{project}_bounds.fgb")), None)
+        polygon = gdf_bounds.geometry.iloc[0]
+    
+        coordinatesBounds = []
+
+        if polygon.geom_type == "Polygon":
+            coordinatesBounds.append(list(polygon.exterior.coords))
+        elif polygon.geom_type == "MultiPolygon":
+            for poly in polygon.geoms:
+                coordinatesBounds.append(list(poly.exterior.coords))
+
+        coordinates = coordinatesBounds
+
+    ids = await get_ids( coordinates, level)
     df = query_metrics(level, {metric: "value"}, ids)
     df = df.fillna(0)
     return df.to_dict(orient="records")
@@ -118,7 +142,9 @@ async def get_info(payload: Dict[Any, Any]):
     cols = [
         "poblacion",
         "viviendas_habitadas",
+        "viviendas_habitadas_percent",
         "viviendas_deshabitadas",
+        "viviendas_deshabitadas_percent",
         "grado_escuela",
         "indice_bienestar",
         "viviendas_tinaco",

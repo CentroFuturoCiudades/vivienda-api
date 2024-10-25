@@ -23,7 +23,17 @@ METRIC_MAPPING = {
         "reduce": "sum",
         "level": "blocks",
     },
+    "viviendas_habitadas_percent": {
+        "query": lambda T: func.greatest(T.c.vivpar_hab * 1.0 / func.nullif(T.c.vivpar_hab, 0) * 100, 0),
+        "reduce": "avg",
+        "level": "blocks",
+    },
     "viviendas_deshabitadas": {
+        "query": lambda T: T.c.vivpar_des,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "viviendas_deshabitadas_percent": {
         "query": lambda T: func.greatest(T.c.vivpar_des * 1.0 / func.nullif(T.c.vivpar_hab, 0) * 100, 0),
         "reduce": "avg",
         "level": "blocks",
