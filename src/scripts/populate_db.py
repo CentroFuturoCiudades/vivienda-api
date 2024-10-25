@@ -54,7 +54,7 @@ def clean_and_cast_types(df, mapping):
     return df
 
 
-def process_in_chunks(file, table_name, engine, index_column, mapping, chunk_size=50000):
+def process_in_chunks(file, table_name, engine, index_column, mapping, chunk_size=5000):
     # Initialize a chunk iterator
     metadata = MetaData()
     # drop only if table exists

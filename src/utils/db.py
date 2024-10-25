@@ -44,7 +44,7 @@ METRIC_MAPPING = {
         "level": "blocks",
     },
     "indice_bienestar": {
-        "query": lambda T: T.c.puntuaje_hogar_digno,
+        "query": lambda T: T.c.puntuaje_hogar_digno * 100,
         "reduce": "avg",
         "level": "blocks",
     },
@@ -98,18 +98,112 @@ METRIC_MAPPING = {
         "reduce": "sum",
         "level": "lots",
     },
+    "p_0a2_m": {
+        "query": lambda T: T.c.p_0a2_m,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_0a2_f": {
+        "query": lambda T: T.c.p_0a2_f,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_3a5_m": {
+        "query": lambda T: T.c.p_3a5_m,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_3a5_f": {
+        "query": lambda T: T.c.p_3a5_f,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_6a11_m": {
+        "query": lambda T: T.c.p_6a11_m,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_6a11_f": {
+        "query": lambda T: T.c.p_6a11_f,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_12a14_m": {
+        "query": lambda T: T.c.p_12a14_m,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_12a14_f": {
+        "query": lambda T: T.c.p_12a14_f,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_15a17_m": {
+        "query": lambda T: T.c.p_15a17_m,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_15a17_f": {
+        "query": lambda T: T.c.p_15a17_f,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_18a24_m": {
+        "query": lambda T: T.c.p_18a24_m,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_18a24_f": {
+        "query": lambda T: T.c.p_18a24_f,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_25a59_m": {
+        "query": lambda T: T.c.p_25a59_m,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_25a59_f": {
+        "query": lambda T: T.c.p_25a59_f,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_60ymas_m": {
+        "query": lambda T: T.c.p_60ymas_m,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "p_60ymas_f": {
+        "query": lambda T: T.c.p_60ymas_f,
+        "reduce": "sum",
+        "level": "blocks",
+    },
+    "num_floors": {
+        "query": lambda T: T.c.num_floors,
+        "reduce": "avg",
+        "level": "lots",
+    },
+    "max_height": {
+        "query": lambda T: T.c.max_height,
+        "reduce": "avg",
+        "level": "lots",
+    },
+    "slope": {
+        "query": lambda T: T.c.mean_slope * 100,
+        "reduce": "avg",
+        "level": "lots",
+    }
 }
 
 @lru_cache()
 def get_engine():
     user = os.getenv("POSTGRES_USER")
     password = os.getenv("POSTGRES_PASSWORD")
-    host = os.getenv("POSTGRES_HOST")
-    port = os.getenv("POSTGRES_PORT")
-    db = os.getenv("POSTGRES_DB")
+    host = os.getenv("POSTGRES_HOST", "localhost")
+    port = os.getenv("POSTGRES_PORT", "5432")
+    db = os.getenv("POSTGRES_DB", "reimaginaurbano")
 
-    connection_string = f"postgresql+psycopg2://{
-        user}:{password}@{host}:{port}/{db}"
+    connection_string = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
     return create_engine(connection_string)
 
 

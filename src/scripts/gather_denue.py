@@ -22,6 +22,7 @@ def get_denue(gdf_bounds: GeoDataFrame, state_code: str, city_name: str) -> GeoD
     geometry_denue = gpd.points_from_xy(df_denue.longitud, df_denue.latitud)
     gdf_denue = gpd.GeoDataFrame(
         df_denue, geometry=geometry_denue, crs="EPSG:4326")
+    gdf_denue = gdf_denue[gdf_denue.geometry.within(gdf_bounds.unary_union)]
     _gdf_bounds = (
         gdf_bounds.to_crs("EPSG:32614").buffer(WALK_RADIUS).to_crs("EPSG:4326")
     )

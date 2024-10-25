@@ -1,6 +1,78 @@
-## Prerequisitos
+## Pre-requisites
+### Setup Poetry
 ```sh
-$ conda env create -f environment.yml
+$ pipx install poetry
+$ poetry install
+```
+
+### Process data
+```sh
+# OUTSIDE: Run notebook preprocess
+
+$ echo "Gathering vegetation"
+$ time poetry run python3 -m src.scripts.gather_vegetation <original-dir> "$tmp-dir"
+$ echo "Gathering establishments"
+$ time poetry run python3 -m src.scripts.gather_denue <original-dir> <tmp-dir> <state-code> <city-name>
+$ echo "Gathering buildings"
+$ time poetry run python3 -m src.scripts.gather_buildings <original-dir> <tmp-dir> <city-name>
+
+$ echo "Processing lots"
+$ time poetry run python3 -m src.scripts.process_lots <original-dir> <tmp-dir> <state-code> <state-name> <city-code>
+$ echo "Assigning establishments"
+$ time poetry run python3 -m src.scripts.assign_establishments <original-dir> <tmp-dir>
+$ echo "Assigning landuse"
+$ time poetry run python3 -m src.scripts.landuse <original-dir> <tmp-dir>
+
+# OUTSIDE: Run notebook visits
+
+echo "Calculating accessibility"
+$ time poetry run python3 -m src.scripts.accessibility <original-dir> <tmp-dir>
+$ echo "Calculating utilization"
+$ time python3 -m src.scripts.utilization <original-dir> <tmp-dir>
+
+
+cp <tmp_dir>/accessibility_blocks.fgb <final-dir>/blocks_complete.fgb
+cp <tmp_dir>/utilization_lots.fgb <final-dir>/lots_complete.fgb
+cp <tmp_dir>/accessibility_trips.csv <final-dir>/accessibility_trips.csv
+cp <tmp_dir>/landuse_building.fgb <final-dir>/landuse_building.fgb
+cp <tmp_dir>/amenities.fgb <final-dir>/amenities.fgb
+cp <tmp_dir>/accessibility_points.fgb <final-dir>/accessibility_points.fgb
+
+# OUTSIDE: Run notebook final
+# OUTSIDE: Run notebook ideal buildings
+```
+
+## Setup local environment
+```sh
+$ psql -U uriels96 -d postgres -f init.sql
+$ export POSTGRES_USER=<name>
+$ export POSTGRES_PASSWORD=<password>
+$ export POSTGRES_HOST=localhost
+$ export POSTGRES_DB=reimaginaurbano
+$ poetry run python3 -m src.scripts.populate_db -l "data/_primavera/final/lots.csv" -b "data/_primavera/final/blocks.csv" -a "data/_primavera/final/accessibility_trips.csv"
+$ poetry run uvicorn src.main:app --reload --env-file .env.local
+```
+
+## Clean up Docker
+Ensure you have cleaned up the docker containers and images before running the next command
+```sh
+docker stop $(docker ps -q)
+docker rm $(docker ps -a -q)
+docker rmi $(docker images -q)
+docker volume rm $(docker volume ls -q)
+docker system prune -a --volumes
+```
+
+## Setup Docker run app locally
+```sh
+$ docker-compose up
+$ docker exec -it reimagina_urbano_app poetry run python -m src.scripts.populate_db -l "data/_primavera/lots.csv" -b "data/_primavera/blocks.csv" -a "data/_primavera/accessibility_trips.csv"
+```
+
+## Setup Docker run app in production
+```sh
+$ docker-compose up
+$ docker exec -it reimagina_urbano_app poetry run python -m src.scripts.populate_db -l "https://reimaginaurbanostorage.blob.core.windows.net/primavera/lots.csv" -b "https://reimaginaurbanostorage.blob.core.windows.net/primavera/blocks.csv" -a "https://reimaginaurbanostorage.blob.core.windows.net/primavera/accessibility_trips.csv"
 ```
 
 ## Descarga de datos INEGI

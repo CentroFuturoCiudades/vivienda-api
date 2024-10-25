@@ -10,6 +10,7 @@ import requests
 import os
 import io
 import re
+from sklearn.preprocessing import MinMaxScaler
 
 from src.scripts.utils.constants import CSV_PATH_MZA_2020, KEEP_COLUMNS, URL_MZA_2020, MAPPING_SCORE_VARS, BOUNDS_FILE, PROCESSED_BLOCKS_FILE
 from src.scripts.utils.utils import normalize
@@ -114,14 +115,10 @@ def process_blocks(gdf_blocks: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         gdf_blocks['p_12a14'] - gdf_blocks['p_15a17'] - \
         gdf_blocks['p_18a24'] - gdf_blocks['p_60ymas']
 
-    total_score = sum(MAPPING_SCORE_VARS.values())
     gdf_blocks['puntuaje_hogar_digno'] = 0
     for key, value in MAPPING_SCORE_VARS.items():
-        gdf_blocks['puntuaje_hogar_digno'] += gdf_blocks[key] * value
-        gdf_blocks['puntuaje_hogar_digno'] = gdf_blocks['puntuaje_hogar_digno'] / \
-            (gdf_blocks['tvivparhab'] * total_score)
-    gdf_blocks['puntuaje_hogar_digno'] = normalize(
-        gdf_blocks['puntuaje_hogar_digno'])
+        gdf_blocks['puntuaje_hogar_digno'] = gdf_blocks['puntuaje_hogar_digno'] + (gdf_blocks[key] / gdf_blocks['tvivparhab']) * value
+    gdf_blocks['puntuaje_hogar_digno'] = (gdf_blocks['puntuaje_hogar_digno'] - gdf_blocks['puntuaje_hogar_digno'].min()) / (gdf_blocks['puntuaje_hogar_digno'].max() - gdf_blocks['puntuaje_hogar_digno'].min())
 
     gdf_blocks['total_cuartos'] = gdf_blocks['vph_1cuart'] + \
         (gdf_blocks['vph_2cuart'] * 2) + (gdf_blocks['vph_3ymasc'] * 3)
@@ -160,6 +157,6 @@ if __name__ == "__main__":
     gdf_blocks.to_file(f"{args.output_dir}/{PROCESSED_BLOCKS_FILE}")
 
     if args.view:
-        gdf_blocks.plot(column="p_60ymas_f", legend=True,
+        gdf_blocks.plot(column="puntuaje_hogar_digno", legend=True,
                         markersize=1, alpha=0.5)
         plt.show()

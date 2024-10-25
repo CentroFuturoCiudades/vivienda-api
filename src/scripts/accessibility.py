@@ -105,7 +105,9 @@ def calculate_accessibility_scores(gdf_aggregate, gdf_blocks, gdf_destinations):
     accessibility_scores = gdf_aggregate.groupby(['origin_id', 'amenity']).agg({'accessibility_score': 'sum', 'minutes': 'min'})
     accessibility_scores = accessibility_scores.groupby('origin_id').agg({'accessibility_score': 'sum', 'minutes': 'max'})
     gdf_blocks = gdf_blocks.merge(accessibility_scores, left_on="node_ids", right_index=True, how="left")
-    gdf_blocks['accessibility_score'] = (gdf_blocks['accessibility_score'] - gdf_blocks['accessibility_score'].median()) / gdf_blocks['accessibility_score'].std()
+    gdf_blocks['accessibility_score'] = np.log(gdf_blocks['accessibility_score'] + 1) * 12.5
+    gdf_blocks['accessibility_score'] = gdf_blocks['accessibility_score'].clip(0, 100) / 100
+    # gdf_blocks['accessibility_score'] = (gdf_blocks['accessibility_score'] - gdf_blocks['accessibility_score'].median()) / gdf_blocks['accessibility_score'].std()
     return gdf_blocks
 
 

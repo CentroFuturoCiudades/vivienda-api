@@ -296,7 +296,7 @@ MAPPING_SCORE_VARS = {
 }
 
 
-BOUNDS_FILE = "bounds.geojson"
+BOUNDS_FILE = "bounds.fgb"
 VEGETATION_FILE = "vegetation.fgb"
 ESTABLISHMENTS_FILE = "establishments.fgb"
 BUILDING_FILE = "buildings.fgb"

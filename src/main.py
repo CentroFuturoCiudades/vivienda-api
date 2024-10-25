@@ -93,8 +93,7 @@ async def get_coordinates(project: str = None):
 
 @app.post("/query")
 async def custom_query(payload: Dict[Any, Any]):
-    metric = payload.get("metric")
-
+    metrics = payload.get("metrics")
     condition = payload.get("condition")
     coordinates = payload.get("coordinates")
     proximity_mapping = payload.get("accessibility_info")
@@ -103,15 +102,15 @@ async def custom_query(payload: Dict[Any, Any]):
 
     id = "cvegeo" if level == "blocks" else "lot_id"
 
-    if metric == "minutes" or metric == "accessibility_score":
+    # TODO: Integrate so that it includes all selected metrics (including minutes and accessibility_score)
+    if "minutes" in metrics:
         ids = await get_ids(coordinates, level)
         df = select_minutes(level, ids, proximity_mapping)
         df = df[[id, "minutes"]]
         df = df.rename(columns={"minutes": "value"})
+        df = df.fillna(0)
         return df.to_dict(orient="records")
 
-
-   
     if (not coordinates or len(coordinates) == 0) and project:
 
         gdf_bounds = await read_gdf_async(get_file(get_blob_url(f"{project}_bounds.fgb")), None)
@@ -127,8 +126,9 @@ async def custom_query(payload: Dict[Any, Any]):
 
         coordinates = coordinatesBounds
 
-    ids = await get_ids( coordinates, level)
-    df = query_metrics(level, {metric: "value"}, ids)
+    ids = await get_ids(coordinates, level)
+    # _metrics = {k: v for k, v in metrics.items() if k not in ["minutes", "accessibility_score"]}
+    df = query_metrics(level, metrics, ids)
     df = df.fillna(0)
     return df.to_dict(orient="records")
 
@@ -157,14 +157,30 @@ async def get_info(payload: Dict[Any, Any]):
         "potencial",
         "subutilizacion",
         "subutilizacion_type",
+        "p_0a2_f",
+        "p_0a2_m",
+        "p_3a5_f",
+        "p_3a5_m",
+        "p_6a11_f",
+        "p_6a11_m",
+        "p_12a14_f",
+        "p_12a14_m",
+        "p_15a17_f",
+        "p_15a17_m",
+        "p_18a24_f",
+        "p_18a24_m",
+        "p_25a59_f" ,
+        "p_25a59_m",
+        "p_60ymas_f",
+        "p_60ymas_m",
+        "slope",
     ]
 
     df = query_metrics(level, {col: col for col in cols}, ids)
+    new_cols = {k: METRIC_MAPPING[k] for k in cols}
     if level == "lots":
-        df = df.groupby("cvegeo").aggregate(
-            {k: 'min' if v['level'] != "lots" else MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in METRIC_MAPPING.items()})
-    df = df.aggregate({k: MAPPING_REDUCE_FUNCS[v['reduce']]
-                       for k, v in METRIC_MAPPING.items()})
+        df = df.groupby("cvegeo").aggregate({k: 'min' if v['level'] != "lots" else MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in new_cols.items()})
+    df = df.aggregate({k: MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in new_cols.items()})
     df = df.fillna(0)
     results = df.to_dict()
     # TODO: Implement accessibility_score part
@@ -173,6 +189,7 @@ async def get_info(payload: Dict[Any, Any]):
         df = select_minutes(level, ids, proximity_mapping)
         df = df[[id, "minutes"]]
         df = df.aggregate({"minutes": "mean"})
+        df = df.fillna(0)
         results["minutes"] = df["minutes"].item()
     return results
 
