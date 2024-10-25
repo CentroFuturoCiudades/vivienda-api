@@ -25,6 +25,8 @@ final_dir="$FOLDER/final"
 mkdir -p $tmp_dir
 mkdir -p "$FOLDER/final"
 
+# OUTSIDE: Run notebook preprocess
+
 # echo "Gathering vegetation"
 # time poetry run python3 -m src.scripts.gather_vegetation "$original_dir" "$tmp_dir" $VERBOSE_OPTION
 # echo "Gathering establishments"
@@ -47,8 +49,12 @@ mkdir -p "$FOLDER/final"
 # cp "$tmp_dir/accessibility_blocks.fgb" "$final_dir/blocks_complete.fgb"
 # cp "$tmp_dir/utilization_lots.fgb" "$final_dir/lots_complete.fgb"
 # cp "$tmp_dir/accessibility_trips.csv" "$final_dir/accessibility_trips.csv"
+# cp "$tmp_dir/landuse_building.fgb" "$final_dir/landuse_building.fgb"
+# cp "$tmp_dir/amenities.fgb" "$final_dir/amenities.fgb"
+# cp "$tmp_dir/accessibility_points.fgb" "$final_dir/accessibility_points.fgb"
 
 # OUTSIDE: Run notebook final
+# OUTSIDE: Run notebook ideal buildings
 
 # echo "Populate DB"
 # time poetry run python -m src.scripts.populate_db -l "$final_dir/lots.csv" -b "$final_dir/blocks.csv" -a "$final_dir/accessibility_trips.csv"
