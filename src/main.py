@@ -98,7 +98,6 @@ async def custom_query(payload: Dict[Any, Any]):
     coordinates = payload.get("coordinates")
     proximity_mapping = payload.get("accessibility_info")
     level = payload.get("level", "blocks")
-    project = payload.get("project")
 
     id = "cvegeo" if level == "blocks" else "lot_id"
 
@@ -110,21 +109,6 @@ async def custom_query(payload: Dict[Any, Any]):
         df = df.rename(columns={"minutes": "value"})
         df = df.fillna(0)
         return df.to_dict(orient="records")
-
-    if (not coordinates or len(coordinates) == 0) and project:
-
-        gdf_bounds = await read_gdf_async(get_file(get_blob_url(f"{project}_bounds.fgb")), None)
-        polygon = gdf_bounds.geometry.iloc[0]
-    
-        coordinatesBounds = []
-
-        if polygon.geom_type == "Polygon":
-            coordinatesBounds.append(list(polygon.exterior.coords))
-        elif polygon.geom_type == "MultiPolygon":
-            for poly in polygon.geoms:
-                coordinatesBounds.append(list(poly.exterior.coords))
-
-        coordinates = coordinatesBounds
 
     ids = await get_ids(coordinates, level)
     # _metrics = {k: v for k, v in metrics.items() if k not in ["minutes", "accessibility_score"]}
