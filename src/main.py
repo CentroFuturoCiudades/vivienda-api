@@ -27,7 +27,7 @@ from functools import lru_cache
 from shapely.geometry import shape
 
 from src.utils.files import get_file, get_blob_url
-from src.utils.db import query_metrics, select_minutes, MAPPING_REDUCE_FUNCS, METRIC_MAPPING
+from src.utils.db import query_metrics, select_minutes, MAPPING_REDUCE_FUNCS, METRIC_MAPPING, get_metrics_info
 
 app = FastAPI()
 
@@ -161,7 +161,8 @@ async def get_info(payload: Dict[Any, Any]):
     ]
 
     df = query_metrics(level, {col: col for col in cols}, ids)
-    new_cols = {k: METRIC_MAPPING[k] for k in cols}
+    new_cols = get_metrics_info(cols)
+    new_cols = {k: v for k, v in zip(cols, new_cols)}
     if level == "lots":
         df = df.groupby("cvegeo").aggregate({k: 'min' if v['level'] != "lots" else MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in new_cols.items()})
     df = df.aggregate({k: MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in new_cols.items()})

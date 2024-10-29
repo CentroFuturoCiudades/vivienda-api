@@ -1,10 +1,16 @@
 import os
 from typing import List, Dict
-from sqlalchemy import create_engine, func, Table, MetaData
+from sqlalchemy import create_engine, func, Table, MetaData, case
 from sqlalchemy.orm import Session, aliased
 from functools import lru_cache
 import pandas as pd
 from dotenv import load_dotenv
+
+def percent(numerator, denominator):
+    return case(
+        (denominator == 0, 0),
+        else_=numerator * 100.0 / func.nullif(denominator, 0)
+    )
 
 MAPPING_REDUCE_FUNCS = {
     "sum": "sum",
@@ -24,7 +30,7 @@ METRIC_MAPPING = {
         "level": "blocks",
     },
     "viviendas_habitadas_percent": {
-        "query": lambda T: func.greatest(T.c.vivpar_hab * 1.0 / func.nullif(T.c.vivpar_hab, 0) * 100, 0),
+        "query": lambda T: percent(T.c.vivpar_hab, T.c.vivpar_hab),
         "reduce": "avg",
         "level": "blocks",
     },
@@ -34,7 +40,7 @@ METRIC_MAPPING = {
         "level": "blocks",
     },
     "viviendas_deshabitadas_percent": {
-        "query": lambda T: func.greatest(T.c.vivpar_des * 1.0 / func.nullif(T.c.vivpar_hab, 0) * 100, 0),
+        "query": lambda T: percent(T.c.vivpar_des, T.c.vivpar_hab),
         "reduce": "avg",
         "level": "blocks",
     },
@@ -49,17 +55,17 @@ METRIC_MAPPING = {
         "level": "blocks",
     },
     "viviendas_tinaco": {
-        "query": lambda T: func.greatest(T.c.vph_tinaco * 1.0 / func.nullif(T.c.vivpar_hab, 0) * 100, 0),
+        "query": lambda T: percent(T.c.vph_tinaco, T.c.vivpar_hab),
         "reduce": "avg",
         "level": "blocks",
     },
     "viviendas_pc": {
-        "query": lambda T: func.greatest(T.c.vph_pc * 1.0 / func.nullif(T.c.vivpar_hab, 0) * 100, 0),
+        "query": lambda T: percent(T.c.vph_pc, T.c.vivpar_hab),
         "reduce": "avg",
         "level": "blocks",
     },
     "viviendas_auto": {
-        "query": lambda T: func.greatest(T.c.vph_autom * 1.0 / func.nullif(T.c.vivpar_hab, 0) * 100, 0),
+        "query": lambda T: percent(T.c.vph_autom, T.c.vivpar_hab),
         "reduce": "avg",
         "level": "blocks",
     },
@@ -98,84 +104,84 @@ METRIC_MAPPING = {
         "reduce": "sum",
         "level": "lots",
     },
-    "p_0a2_m": {
-        "query": lambda T: T.c.p_0a2_m,
-        "reduce": "sum",
+    "per_p_0a2_m": {
+        "query": lambda T: percent(T.c.p_0a2_m, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_0a2_f": {
-        "query": lambda T: T.c.p_0a2_f,
-        "reduce": "sum",
+    "per_p_0a2_f": {
+        "query": lambda T: percent(T.c.p_0a2_f, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_3a5_m": {
-        "query": lambda T: T.c.p_3a5_m,
-        "reduce": "sum",
+    "per_p_3a5_m": {
+        "query": lambda T: percent(T.c.p_3a5_m, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_3a5_f": {
-        "query": lambda T: T.c.p_3a5_f,
-        "reduce": "sum",
+    "per_p_3a5_f": {
+        "query": lambda T: percent(T.c.p_3a5_f, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_6a11_m": {
-        "query": lambda T: T.c.p_6a11_m,
-        "reduce": "sum",
+    "per_p_6a11_m": {
+        "query": lambda T: percent(T.c.p_6a11_m, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_6a11_f": {
-        "query": lambda T: T.c.p_6a11_f,
-        "reduce": "sum",
+    "per_p_6a11_f": {
+        "query": lambda T: percent(T.c.p_6a11_f, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_12a14_m": {
-        "query": lambda T: T.c.p_12a14_m,
-        "reduce": "sum",
+    "per_p_12a14_m": {
+        "query": lambda T: percent(T.c.p_12a14_m, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_12a14_f": {
-        "query": lambda T: T.c.p_12a14_f,
-        "reduce": "sum",
+    "per_p_12a14_f": {
+        "query": lambda T: percent(T.c.p_12a14_f, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_15a17_m": {
-        "query": lambda T: T.c.p_15a17_m,
-        "reduce": "sum",
+    "per_p_15a17_m": {
+        "query": lambda T: percent(T.c.p_15a17_m, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_15a17_f": {
-        "query": lambda T: T.c.p_15a17_f,
-        "reduce": "sum",
+    "per_p_15a17_f": {
+        "query": lambda T: percent(T.c.p_15a17_f, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_18a24_m": {
-        "query": lambda T: T.c.p_18a24_m,
-        "reduce": "sum",
+    "per_p_18a24_m": {
+        "query": lambda T: percent(T.c.p_18a24_m, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_18a24_f": {
-        "query": lambda T: T.c.p_18a24_f,
-        "reduce": "sum",
+    "per_p_18a24_f": {
+        "query": lambda T: percent(T.c.p_18a24_f, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_25a59_m": {
-        "query": lambda T: T.c.p_25a59_m,
-        "reduce": "sum",
+    "per_p_25a59_m": {
+        "query": lambda T: percent(T.c.p_25a59_m, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_25a59_f": {
-        "query": lambda T: T.c.p_25a59_f,
-        "reduce": "sum",
+    "per_p_25a59_f": {
+        "query": lambda T: percent(T.c.p_25a59_f, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_60ymas_m": {
-        "query": lambda T: T.c.p_60ymas_m,
-        "reduce": "sum",
+    "per_p_60ymas_m": {
+        "query": lambda T: percent(T.c.p_60ymas_m, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
-    "p_60ymas_f": {
-        "query": lambda T: T.c.p_60ymas_f,
-        "reduce": "sum",
+    "per_p_60ymas_f": {
+        "query": lambda T: percent(T.c.p_60ymas_f, T.c.pobtot),
+        "reduce": "avg",
         "level": "blocks",
     },
     "num_floors": {
@@ -195,6 +201,25 @@ METRIC_MAPPING = {
     }
 }
 
+def get_metric(metric: str, Lots, Blocks):
+    if metric in METRIC_MAPPING:
+        return METRIC_MAPPING[metric]
+    else:
+        if hasattr(Lots.c, metric):
+            return {
+                "query": lambda T: getattr(T.c, metric),
+                "reduce": "sum",
+                "level": "lots",
+            }
+        elif hasattr(Blocks.c, metric):
+            return {
+                "query": lambda T: getattr(T.c, metric),
+                "reduce": "sum",
+                "level": "blocks",
+            }
+
+
+
 @lru_cache()
 def get_engine():
     user = os.getenv("POSTGRES_USER")
@@ -205,6 +230,14 @@ def get_engine():
 
     connection_string = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
     return create_engine(connection_string)
+
+
+def get_metrics_info(metrics: List[str]):
+    engine = get_engine()
+    metadata = MetaData()
+    Blocks = Table('blocks', metadata, autoload_with=engine)
+    Lots = Table('lots', metadata, autoload_with=engine)
+    return [get_metric(metric, Lots, Blocks) for metric in metrics]
 
 
 def query_metrics(level: str, metrics: Dict[str, str], ids: List[str] = None):
@@ -232,23 +265,15 @@ def query_metrics(level: str, metrics: Dict[str, str], ids: List[str] = None):
 
             for metric, new_metric in metrics.items():
                 # Check if the metric belongs to Lots or Blocks
-                if METRIC_MAPPING[metric]["level"] == "lots":
-                    # Apply the appropriate aggregation function based on reduce_mappings
-                    if metric in METRIC_MAPPING:
-                        func_reduce = getattr(
-                            func, METRIC_MAPPING[metric]["reduce"])
-                        # agg_function = METRIC_MAPPING[metric]["reduce"]
-                        _metric = METRIC_MAPPING[metric]["query"](lots_alias)
-                        # base_query = base_query.add_columns(func.min(_metric).label(new_metric))
-                        base_query = base_query.add_columns(
-                            func_reduce(_metric).label(new_metric))
-                    else:
-                        raise ValueError(
-                            f"Metric {metric} has no defined aggregation.")
-                elif METRIC_MAPPING[metric]["level"] == "blocks":
-                    _metric = METRIC_MAPPING[metric]["query"](blocks_alias)
-                    # base_query = base_query.add_columns(
-                    #     _metric.label(new_metric))
+                metric_info = get_metric(metric, Lots, Blocks)
+                if metric_info["level"] == "lots":
+                    func_reduce = getattr(
+                        func, metric_info["reduce"])
+                    _metric = metric_info["query"](lots_alias)
+                    base_query = base_query.add_columns(
+                        func_reduce(_metric).label(new_metric))
+                elif metric_info["level"] == "blocks":
+                    _metric = metric_info["query"](blocks_alias)
                     base_query = base_query.add_columns(
                         func.min(_metric).label(new_metric))
                 else:
@@ -268,13 +293,14 @@ def query_metrics(level: str, metrics: Dict[str, str], ids: List[str] = None):
 
             for metric, new_metric in metrics.items():
                 # Check if the metric belongs to Lots or Blocks
-                if METRIC_MAPPING[metric]["level"] == "lots":
-                    _metric = METRIC_MAPPING[metric]["query"](lots_alias)
+                metric_info = get_metric(metric, Lots, Blocks)
+                if metric_info["level"] == "lots":
+                    _metric = metric_info["query"](lots_alias)
                     base_query = base_query.add_columns(
                         _metric.label(new_metric))
-                elif METRIC_MAPPING[metric]["level"] == "blocks":
+                elif metric_info["level"] == "blocks":
                     # If we are at the "lots" level, and the metric comes from Blocks, simply return the value from Lots
-                    _metric = METRIC_MAPPING[metric]["query"](blocks_alias)
+                    _metric = metric_info["query"](blocks_alias)
                     base_query = base_query.add_columns(
                         _metric.label(new_metric))
                 else:
@@ -282,7 +308,7 @@ def query_metrics(level: str, metrics: Dict[str, str], ids: List[str] = None):
                         f"Metric {metric} not found in either Lots or Blocks.")
 
             # Perform join if we need any metrics from Blocks
-            if any(METRIC_MAPPING[metric]["level"] == "blocks" for metric in metrics):
+            if any(get_metric(metric, Lots, Blocks)["level"] == "blocks" for metric in metrics):
                 join_condition = lots_alias.c.cvegeo == blocks_alias.c.cvegeo
                 base_query = base_query.join(blocks_alias, join_condition)
             if ids:
