@@ -71,7 +71,7 @@ $ docker exec -it reimagina_urbano_app poetry run python -m src.scripts.populate
 
 ## Setup Docker run app in production
 ```sh
-$ docker-compose up
+$ docker-compose up -d
 $ docker exec -it reimagina_urbano_app poetry run python -m src.scripts.populate_db -l "https://reimaginaurbanostorage.blob.core.windows.net/primavera/lots.csv" -b "https://reimaginaurbanostorage.blob.core.windows.net/primavera/blocks.csv" -a "https://reimaginaurbanostorage.blob.core.windows.net/primavera/accessibility_trips.csv"
 ```
 
