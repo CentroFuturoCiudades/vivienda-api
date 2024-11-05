@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import re
 
-from src.scripts.utils.constants import AMENITIES_MAPPING, DENUE_TO_AMENITY_MAPPING, AMENITIES_FILE_MAPPING, LOTS_FILE, BOUNDS_FILE, ESTABLISHMENTS_LOTS_FILE, PROCESSED_BLOCKS_FILE, ESTABLISHMENTS_FILE, ASSIGN_ESTABLISHMENTS_FILE, AMENITIES_FILE
+from src.scripts.utils.constants import AMENITIES_MAPPING, DENUE_TO_AMENITY_MAPPING, AMENITIES_FILE_MAPPING, LOTS_FILE, BOUNDS_FILE, ESTABLISHMENTS_LOTS_FILE, PROCESSED_BLOCKS_FILE, ESTABLISHMENTS_FILE, ASSIGN_ESTABLISHMENTS_FILE, ESTABLISHMENTS_AMENITIES_FILE
 from src.scripts.utils.utils import convert_distance
 import numpy as np
 
@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
     gdf_lots.to_file(f"{args.output_dir}/{ESTABLISHMENTS_LOTS_FILE}")
     gdf_denue.to_file(f"{args.output_dir}/{ASSIGN_ESTABLISHMENTS_FILE}")
-    gdf_amenities.to_file(f"{args.output_dir}/{AMENITIES_FILE}")
+    gdf_amenities.to_file(f"{args.output_dir}/{ESTABLISHMENTS_AMENITIES_FILE}")
 
     if args.view:
         gdf_amenities.plot(column="amenity", legend=True)

@@ -1,16 +1,18 @@
 import os
 from typing import List, Dict
-from sqlalchemy import create_engine, func, Table, MetaData, case
+from sqlalchemy import create_engine, func, Table, MetaData, case, select, desc
+from sqlalchemy.sql import literal_column
 from sqlalchemy.orm import Session, aliased
 from functools import lru_cache
 import pandas as pd
-from dotenv import load_dotenv
+
 
 def percent(numerator, denominator):
     return case(
         (denominator == 0, 0),
         else_=numerator * 100.0 / func.nullif(denominator, 0)
     )
+
 
 MAPPING_REDUCE_FUNCS = {
     "sum": "sum",
@@ -201,6 +203,7 @@ METRIC_MAPPING = {
     }
 }
 
+
 def get_metric(metric: str, Lots, Blocks):
     if metric in METRIC_MAPPING:
         return METRIC_MAPPING[metric]
@@ -219,7 +222,6 @@ def get_metric(metric: str, Lots, Blocks):
             }
 
 
-
 @lru_cache()
 def get_engine():
     user = os.getenv("POSTGRES_USER")
@@ -228,7 +230,8 @@ def get_engine():
     port = os.getenv("POSTGRES_PORT", "5432")
     db = os.getenv("POSTGRES_DB", "reimaginaurbano")
 
-    connection_string = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
+    connection_string = f"postgresql+psycopg2://{
+        user}:{password}@{host}:{port}/{db}"
     return create_engine(connection_string)
 
 
@@ -353,3 +356,144 @@ def select_minutes(
         query = query.group_by(column)
         df = pd.read_sql(query.statement, session.bind)
         return df
+
+
+def select_furthest_amenity(level: str, ids: List[str], amenities: List[str]):
+    engine = get_engine()
+    metadata = MetaData()
+    Blocks = Table('blocks', metadata, autoload_with=engine)
+    Lots = Table('lots', metadata, autoload_with=engine)
+    AccessibilityTrips = Table(
+        'accessibility_trips', metadata, autoload_with=engine)
+
+    with Session(engine) as session:
+        # Aliased table for ranking rows within each origin_id
+        ranked_trips = (
+            session.query(
+                AccessibilityTrips.c.origin_id,
+                AccessibilityTrips.c.amenity,
+                AccessibilityTrips.c.distance,
+                AccessibilityTrips.c.minutes,
+                func.row_number().over(
+                    partition_by=AccessibilityTrips.c.origin_id,
+                    order_by=desc(AccessibilityTrips.c.minutes)
+                ).label("rn")
+            )
+            .filter(AccessibilityTrips.c.num_amenity == 1)
+            .subquery()
+        )
+
+        # Define the column to filter based on the level
+        column = Blocks.c.cvegeo if level == "blocks" else Lots.c.lot_id
+
+        # Main query
+        query = session.query(
+            ranked_trips.c.amenity.label("amenity"),
+            ranked_trips.c.distance.label("distance"),
+            ranked_trips.c.minutes.label("minutes"),
+            Blocks.c.cvegeo.label("cvegeo")
+        )
+
+        # Join with Blocks table
+        query = query.join(
+            Blocks, ranked_trips.c.origin_id == Blocks.c.node_ids)
+
+        # Additional logic if level is "lots"
+        if level == "lots":
+            query = query.add_columns(Lots.c.lot_id.label("lot_id"))
+            query = query.join(Lots, Blocks.c.cvegeo == Lots.c.cvegeo)
+
+        # Apply filter for specific IDs if provided
+        if ids:
+            query = query.filter(column.in_(ids))
+
+        # Additional filter for amenities if provided
+        if amenities:
+            query = query.filter(ranked_trips.c.amenity.in_(amenities))
+
+        # Only keep rows where row number is 1 (furthest `amenity` per origin_id)
+        query = query.filter(ranked_trips.c.rn == 1)
+
+        # Execute and return the result as DataFrame
+        df = pd.read_sql(query.statement, session.bind)
+        return df
+
+
+def select_accessibility_score(
+    level: str, ids: List[str], amenities: List[str]
+):
+    engine = get_engine()  # Ensure this function is defined to get the engine
+    metadata = MetaData()
+    Blocks = Table('blocks', metadata, autoload_with=engine)
+    Blocks = aliased(Blocks)
+    Lots = Table('lots', metadata, autoload_with=engine)
+    AccessibilityTrips = Table(
+        'accessibility_trips', metadata, autoload_with=engine)
+
+    with Session(engine) as session:
+        # Step 1: Precompute Rj values for each destination_id as a subquery
+        rj_subquery = (
+            select(
+                AccessibilityTrips.c.destination_id,
+                (func.min(AccessibilityTrips.c.attraction) /
+                 func.nullif(
+                     func.sum(AccessibilityTrips.c.population * AccessibilityTrips.c.gravity), 0)
+                 ).label('rj')
+            )
+            .group_by(AccessibilityTrips.c.destination_id)
+            .subquery()
+        )
+
+        # Step 2: Calculate ai using the Rj subquery joined with AccessibilityTrips, grouped by origin_id and amenity
+        intermediate_query = session.query(
+            AccessibilityTrips.c.origin_id.label("origin_id"),
+            AccessibilityTrips.c.amenity.label("amenity"),
+            func.sum(rj_subquery.c.rj *
+                     AccessibilityTrips.c.gravity).label('accessibility_score')
+        )
+
+        # Define column for the selected level
+        id = "cvegeo" if level == "blocks" else "lot_id"
+        column = Blocks.c.cvegeo if level == "blocks" else Lots.c.lot_id
+        intermediate_query = intermediate_query.add_columns(column.label(id))
+
+        # Join with Blocks, Lots, and the Rj subquery
+        intermediate_query = intermediate_query.select_from(AccessibilityTrips).join(
+            rj_subquery, AccessibilityTrips.c.destination_id == rj_subquery.c.destination_id
+        ).join(
+            Blocks, AccessibilityTrips.c.origin_id == Blocks.c.node_ids
+        )
+
+        if level == "lots":
+            intermediate_query = intermediate_query.join(
+                Lots, Blocks.c.cvegeo == Lots.c.cvegeo)
+            # intermediate_query = intermediate_query.add_columns(func.min(Lots.c.lot_id).label("lot_id"))
+
+        # Apply filters for ids and amenities if provided
+        if ids:
+            intermediate_query = intermediate_query.filter(column.in_(ids))
+        # Apply filters for amenities if provided
+        if amenities:
+            intermediate_query = intermediate_query.filter(
+                AccessibilityTrips.c.amenity.in_(amenities))
+
+        # Group the intermediate result by level, amenity, and origin_id
+        intermediate_query = intermediate_query.group_by(
+            column, AccessibilityTrips.c.amenity, AccessibilityTrips.c.origin_id)
+
+        # Step 3: Execute the intermediate query and store it as a DataFrame
+        intermediate_df = pd.read_sql(
+            intermediate_query.statement, session.bind)
+
+        # Step 4: Aggregate the final accessibility score by origin_id only
+        final_df = intermediate_df.groupby(id, as_index=False).agg({
+            "accessibility_score": "sum"
+        })
+        if amenities:
+            final_df["accessibility_score"] = final_df["accessibility_score"] / \
+                len(amenities)
+        else:
+            final_df["accessibility_score"] = final_df["accessibility_score"] / \
+                len(intermediate_df["amenity"].unique())
+
+        return final_df

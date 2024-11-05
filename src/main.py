@@ -27,7 +27,7 @@ from functools import lru_cache
 from shapely.geometry import shape
 
 from src.utils.files import get_file, get_blob_url
-from src.utils.db import query_metrics, select_minutes, MAPPING_REDUCE_FUNCS, METRIC_MAPPING, get_metrics_info
+from src.utils.db import query_metrics, select_minutes, select_accessibility_score, MAPPING_REDUCE_FUNCS, METRIC_MAPPING, get_metrics_info, select_furthest_amenity
 
 app = FastAPI()
 
@@ -83,9 +83,9 @@ async def root():
 
 @app.get("/coords")
 async def get_coordinates(project: str = None):
-    if not project :
+    if not project:
         project = "primavera"
-    
+
     gdf_bounds = await read_gdf_async(get_file(get_blob_url(f"{project}_bounds.fgb")), None)
     geom = gdf_bounds.unary_union
     return {"latitude": geom.centroid.y, "longitude": geom.centroid.x}
@@ -107,6 +107,16 @@ async def custom_query(payload: Dict[Any, Any]):
         df = select_minutes(level, ids, proximity_mapping)
         df = df[[id, "minutes"]]
         df = df.rename(columns={"minutes": "value"})
+        df = df.fillna(0)
+        return df.to_dict(orient="records")
+
+    if "accessibility_score" in metrics:
+        ids = await get_ids(coordinates, level)
+        df = select_accessibility_score(level, ids, proximity_mapping)
+        df['accessibility_score'] = np.log(df['accessibility_score'] + 1) * 17
+        print(df['accessibility_score'].describe())
+        df = df[[id, "accessibility_score"]]
+        df = df.rename(columns={"accessibility_score": "value"})
         df = df.fillna(0)
         return df.to_dict(orient="records")
 
@@ -153,7 +163,7 @@ async def get_info(payload: Dict[Any, Any]):
         "p_15a17_m",
         "p_18a24_f",
         "p_18a24_m",
-        "p_25a59_f" ,
+        "p_25a59_f",
         "p_25a59_m",
         "p_60ymas_f",
         "p_60ymas_m",
@@ -164,18 +174,33 @@ async def get_info(payload: Dict[Any, Any]):
     new_cols = get_metrics_info(cols)
     new_cols = {k: v for k, v in zip(cols, new_cols)}
     if level == "lots":
-        df = df.groupby("cvegeo").aggregate({k: 'min' if v['level'] != "lots" else MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in new_cols.items()})
-    df = df.aggregate({k: MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in new_cols.items()})
+        df = df.groupby("cvegeo").aggregate(
+            {k: 'min' if v['level'] != "lots" else MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in new_cols.items()})
+    df = df.aggregate(
+        {k: MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in new_cols.items()})
     df = df.fillna(0)
     results = df.to_dict()
     # TODO: Implement accessibility_score part
-    if "minutes" in cols or "accessibility_score" in cols:
+    if "minutes" in cols:
         id = "cvegeo" if level == "blocks" else "lot_id"
         df = select_minutes(level, ids, proximity_mapping)
         df = df[[id, "minutes"]]
         df = df.aggregate({"minutes": "mean"})
         df = df.fillna(0)
         results["minutes"] = df["minutes"].item()
+
+        df = select_furthest_amenity(level, ids, proximity_mapping)
+        df = df[[id, "amenity"]]
+        df = df.aggregate({"amenity": lambda x: x.value_counts().idxmax()})
+        results["amenity"] = df["amenity"]
+    # if "accessibility_score" in cols:
+    #     id = "cvegeo"
+    #     df = select_accessibility_score(level, ids, proximity_mapping)
+    #     df['accessibility_score'] = np.log(df['accessibility_score'] + 1) * 17
+    #     df = df[[id, "accessibility_score"]]
+    #     df = df.aggregate({"accessibility_score": "mean"})
+    #     df = df.fillna(0)
+    #     results["accessibility_score"] = df["accessibility_score"].item()
     return results
 
 

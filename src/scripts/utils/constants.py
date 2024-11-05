@@ -102,7 +102,7 @@ AMENITIES_MAPPING = [
         "query_to": "amenity == 'Guarderia'",
         "pob_query": "p_0a2 + p_3a5",
         "amenity": "Guarderia",
-        "attraction_query": "students + teachers",
+        "attraction_query": "num_workers * 8", # Each worker can attend to 8 children per day
         "radius": 3000,
         "importance": 0.05,
     },
@@ -305,6 +305,7 @@ LOTS_FILE = "lots.fgb"
 ESTABLISHMENTS_LOTS_FILE = "establishments_lots.fgb"
 LANDUSE_LOTS_FILE = "landuse_lots.fgb"
 ACCESSIBILITY_BLOCKS_FILE = "accessibility_blocks.fgb"
+ESTABLISHMENTS_AMENITIES_FILE = "establishments_amenities.fgb"
 AMENITIES_FILE = "amenities.fgb"
 PEDESTRIAN_NETWORK_FILE = "pedestrian_network.h5"
 ACCESSIBILITY_FILE = "accessibility_points.fgb"

@@ -161,7 +161,7 @@ if __name__ == "__main__":
     gdf_blocks['node_ids'] = pedestrian_network.get_node_ids(gdf_blocks.geometry.centroid.x, gdf_blocks.geometry.centroid.y)
     gdf_blocks['node_ids'] = gdf_blocks['node_ids'].apply(lambda x: int(x) if pd.notnull(x) else None)
     gdf_amenities['node_ids'] = pedestrian_network.get_node_ids(gdf_amenities.geometry.centroid.x, gdf_amenities.geometry.centroid.y)
-    gdf_amenities = gdf_amenities[["node_ids", "geometry", "amenity", "num_workers", "students", "teachers", "area"]]
+    gdf_amenities = gdf_amenities[["node_ids", "geometry", "name", "amenity", "num_workers", "students", "teachers", "area", "num_visits", "visits_category"]]
     gdf_amenities['node_ids'] = gdf_amenities['node_ids'].apply(lambda x: int(x) if pd.notnull(x) else None)
 
     df_aggregate = calculate_accessibility(gdf_blocks, gdf_amenities, pedestrian_network, AMENITIES_MAPPING)
@@ -176,6 +176,7 @@ if __name__ == "__main__":
     gdf_amenities = gpd.GeoDataFrame(df_amenities, crs="EPSG:4326")
     gdf_blocks.to_file(f"{args.output_dir}/{ACCESSIBILITY_BLOCKS_FILE}", engine="pyogrio")
 
+    gdf_amenities.to_file(f"{args.output_dir}/{AMENITIES_FILE}", engine="pyogrio")
     gdf_accessibility_points = gdf_amenities.copy()
     gdf_accessibility_points['geometry'] = gdf_accessibility_points.centroid
     gdf_accessibility_points.to_file(f"{args.output_dir}/{ACCESSIBILITY_FILE}", engine="pyogrio")
