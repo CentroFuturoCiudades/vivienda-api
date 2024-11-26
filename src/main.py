@@ -178,34 +178,29 @@ async def get_info(payload: Dict[Any, Any]):
         "slope",
     ]
 
-    try:
-        df = query_metrics(level, {col: col for col in cols}, ids)
-        new_cols = get_metrics_info(cols)
-        new_cols = {k: v for k, v in zip(cols, new_cols)}
-        if level == "lots":
-            df = df.groupby("cvegeo").aggregate(
-                {k: 'min' if v['level'] != "lots" else MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in new_cols.items()})
-        df = df.aggregate(
-            {k: MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in new_cols.items()})
+    df = query_metrics(level, {col: col for col in cols}, ids)
+    new_cols = get_metrics_info(cols)
+    new_cols = {k: v for k, v in zip(cols, new_cols)}
+    if level == "lots":
+        df = df.groupby("cvegeo").aggregate(
+            {k: 'min' if v['level'] != "lots" else MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in new_cols.items()})
+    df = df.aggregate(
+        {k: MAPPING_REDUCE_FUNCS[v['reduce']] for k, v in new_cols.items()})
+    df = df.fillna(0)
+    results = df.to_dict()
+    # TODO: Implement accessibility_score part
+    if "minutes" in cols:
+        id = "cvegeo" if level == "blocks" else "lot_id"
+        df = select_minutes(level, ids, proximity_mapping)
+        df = df[[id, "minutes"]]
+        df = df.aggregate({"minutes": "mean"})
         df = df.fillna(0)
-        results = df.to_dict()
-        # TODO: Implement accessibility_score part
-        if "minutes" in cols:
-            id = "cvegeo" if level == "blocks" else "lot_id"
-            df = select_minutes(level, ids, proximity_mapping)
-            df = df[[id, "minutes"]]
-            df = df.aggregate({"minutes": "mean"})
-            df = df.fillna(0)
-            results["minutes"] = df["minutes"].item()
+        results["minutes"] = df["minutes"].item()
 
-            df = select_furthest_amenity(level, ids, proximity_mapping)
-            df = df[[id, "amenity"]]
-            df = df.aggregate({"amenity": lambda x: x.value_counts().idxmax()})
-            results["amenity"] = df["amenity"]
-    except Exception as e:
-        print(e)
-        results = {col: 0 for col in cols}
-
+        df = select_furthest_amenity(level, ids, proximity_mapping)
+        df = df[[id, "amenity"]]
+        df = df.aggregate({"amenity": lambda x: x.value_counts().idxmax()})
+        results["amenity"] = df["amenity"]
     # if "accessibility_score" in cols:
     #     id = "cvegeo"
     #     df = select_accessibility_score(level, ids, proximity_mapping)
