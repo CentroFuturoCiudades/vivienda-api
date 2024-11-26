@@ -242,7 +242,7 @@ METRIC_MAPPING = {
         "level": "lots",
     },
     "slope": {
-        "query": lambda T: T.c.mean_slope * 100,
+        "query": lambda T: T.c.num_levels,
         "reduce": "avg",
         "level": "lots",
     }
