@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import re
 
-from src.scripts.utils.constants import AMENITIES_MAPPING, DENUE_TO_AMENITY_MAPPING, AMENITIES_FILE_MAPPING, LOTS_FILE, BOUNDS_FILE, ESTABLISHMENTS_LOTS_FILE, PROCESSED_BLOCKS_FILE, ESTABLISHMENTS_FILE, ASSIGN_ESTABLISHMENTS_FILE, ESTABLISHMENTS_AMENITIES_FILE
+from src.scripts.utils.constants import AMENITIES_MAPPING, DENUE_TO_AMENITY_MAPPING, AMENITIES_FILE_MAPPING, LOTS_FILE, BOUNDS_FILE, ESTABLISHMENTS_LOTS_FILE, PROCESSED_BLOCKS_FILE, ESTABLISHMENTS_FILE, ASSIGN_ESTABLISHMENTS_FILE, AMENITIES_FILE, ESTABLISHMENTS_AMENITIES_FILE
 from src.scripts.utils.utils import convert_distance
 import numpy as np
 
@@ -46,13 +46,14 @@ def get_args():
 if __name__ == "__main__":
     args = get_args()
 
+    gdf_bounds = gpd.read_file(f"{args.input_dir}/{BOUNDS_FILE}", crs="EPSG:4326")
     gdf_lots = gpd.read_file(f"{args.input_dir}/{LOTS_FILE}", crs="EPSG:4326")
     gdf_blocks = gpd.read_file(f"{args.output_dir}/{PROCESSED_BLOCKS_FILE}", crs="EPSG:4326")
     gdf_blocks = gdf_blocks[['cvegeo', 'block_area', 'geometry']]
     gdf_lots = gpd.sjoin(gdf_lots, gdf_blocks, how="left", predicate="intersects")
     gdf_lots = (
         gdf_lots.groupby("lot_id")
-        .agg({"zoning": "first", "geometry": "first", "cvegeo": "first"})
+        .agg({"zoning": "first", "num_levels": "first", "geometry": "first", "cvegeo": "first"})
         .reset_index()
     )
     gdf_lots = gpd.GeoDataFrame(gdf_lots, crs="EPSG:4326")
@@ -66,7 +67,6 @@ if __name__ == "__main__":
     )
     gdf_lots['lot_id'] = range(1, len(gdf_lots) + 1)
     gdf_lots['lot_id'] = gdf_lots['lot_id'].astype(str)
-    # gdf_lots['lot_id'] = gdf_lots['lot_id'].ffill()
 
     gdf_denue = gpd.read_file(f"{args.output_dir}/{ESTABLISHMENTS_FILE}", crs="EPSG:4326")
     gdf_denue = gdf_denue.rename(columns={"id": "denue_id"})
@@ -86,6 +86,7 @@ if __name__ == "__main__":
 
     if os.path.exists(f"{args.input_dir}/{AMENITIES_FILE}"):
         gdf_amenities = gpd.read_file(f"{args.input_dir}/{AMENITIES_FILE}", crs="EPSG:4326")
+        gdf_amenities = gdf_amenities[gdf_amenities.geometry.intersects(gdf_bounds.unary_union)]
         gdf_amenities = gdf_amenities[gdf_amenities["amenity"].isin(AMENITIES_FILE_MAPPING.keys())]
         gdf_amenities["amenity"] = gdf_amenities["amenity"].replace(AMENITIES_FILE_MAPPING)
         gdf_denue_amenities = gdf_denue[gdf_denue["amenity"].notnull()].rename({"nom_estab": "name"}, axis=1)

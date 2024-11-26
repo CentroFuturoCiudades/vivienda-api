@@ -152,11 +152,12 @@ if __name__ == "__main__":
 
     gdf_blocks = gather_blocks(
         args.state_code, args.state_name, args.city_code)
+    gdf_blocks = gdf_blocks[gdf_blocks.intersects(gdf_bounds.unary_union)]
     gdf_blocks = process_blocks(gdf_blocks)
 
     gdf_blocks.to_file(f"{args.output_dir}/{PROCESSED_BLOCKS_FILE}")
 
     if args.view:
-        gdf_blocks.plot(column="puntuaje_hogar_digno", legend=True,
+        gdf_blocks.plot(column="pobtot", legend=True,
                         markersize=1, alpha=0.5)
         plt.show()

@@ -1,6 +1,6 @@
 from itertools import chain
 
-BUILDING_CONFIDENCE = 0.65
+BUILDING_CONFIDENCE = 0.5
 PARK_TAGS = {
     'leisure': 'park',
     'landuse': 'recreation_ground'

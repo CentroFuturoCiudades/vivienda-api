@@ -97,7 +97,7 @@ if __name__ == "__main__":
     args = get_args()
 
     gdf_bounds = gpd.read_file(f"{args.input_dir}/{BOUNDS_FILE}", crs="EPSG:4326")
-    gdf_bounds = gdf_bounds.to_crs("EPSG:32614").buffer(WALK_RADIUS).to_crs("EPSG:4326")
+    # gdf_bounds = gdf_bounds.to_crs("EPSG:32614").buffer(WALK_RADIUS).to_crs("EPSG:4326")
     gdf_denue = load_gdf(f"{args.output_dir}/{ASSIGN_ESTABLISHMENTS_FILE}", gdf_bounds)
     gdf_lots = load_gdf(f"{args.output_dir}/{ESTABLISHMENTS_LOTS_FILE}", gdf_bounds)
     gdf_lots["lot_area"] = gdf_lots.to_crs("EPSG:6933").area / 10_000

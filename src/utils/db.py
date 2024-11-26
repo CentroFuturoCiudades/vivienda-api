@@ -82,27 +82,67 @@ METRIC_MAPPING = {
         "level": "blocks",
     },
     "density": {
-        "query": lambda T: T.c.home_density,
+        "query": lambda T: T.c.density,
         "reduce": "avg",
         "level": "lots",
     },
-    "max_height": {
-        "query": lambda T: T.c.max_height,
+    "cos": {
+        "query": lambda T: T.c.cos,
         "reduce": "avg",
         "level": "lots",
     },
-    "potencial": {
-        "query": lambda T: T.c.potential_new_units,
+    "max_cos": {
+        "query": lambda T: T.c.max_cos,
+        "reduce": "avg",
+        "level": "lots",
+    },
+    "cus": {
+        "query": lambda T: T.c.cus,
+        "reduce": "avg",
+        "level": "lots",
+    },
+    "max_cus": {
+        "query": lambda T: T.c.max_cus,
+        "reduce": "avg",
+        "level": "lots",
+    },
+    "home_units": {
+        "query": lambda T: T.c.home_units,
+        "reduce": "sum",
+        "level": "lots",
+    },
+    "max_density": {
+        "query": lambda T: T.c.max_density,
+        "reduce": "avg",
+        "level": "lots",
+    },
+    "area": {
+        "query": lambda T: T.c.lot_area / 10_000,
+        "reduce": "sum",
+        "level": "lots",
+    },
+    "max_num_levels": {
+        "query": lambda T: T.c.max_num_levels,
+        "reduce": "avg",
+        "level": "lots",
+    },
+    "max_home_units": {
+        "query": lambda T: T.c.max_home_units,
         "reduce": "sum",
         "level": "lots",
     },
     "subutilizacion": {
-        "query": lambda T: func.least(1 - (T.c.units_estimate * 100.0 / func.nullif(T.c.max_home_units, 0)), 100),
+        "query": lambda T: func.least(1 - (T.c.home_units / func.nullif(T.c.max_home_units, 0)), 1) * 100,
+        "reduce": "avg",
+        "level": "lots",
+    },
+    "potential_population": {
+        "query": lambda T: T.c.potential_home_units * T.c.prom_ocup,
         "reduce": "sum",
         "level": "lots",
     },
     "subutilizacion_type": {
-        "query": lambda T: T.c.max_height,
+        "query": lambda T: T.c.num_levels,
         "reduce": "sum",
         "level": "lots",
     },
@@ -186,13 +226,18 @@ METRIC_MAPPING = {
         "reduce": "avg",
         "level": "blocks",
     },
-    "num_floors": {
-        "query": lambda T: T.c.num_floors,
+    "num_levels": {
+        "query": lambda T: T.c.num_levels,
         "reduce": "avg",
         "level": "lots",
     },
-    "max_height": {
-        "query": lambda T: T.c.max_height,
+    "max_num_levels": {
+        "query": lambda T: T.c.max_num_levels,
+        "reduce": "avg",
+        "level": "lots",
+    },
+    "num_levels": {
+        "query": lambda T: T.c.num_levels,
         "reduce": "avg",
         "level": "lots",
     },
