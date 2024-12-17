@@ -150,7 +150,25 @@ AMENITIES_MAPPING = [
         "attraction_query": "students + teachers",
         "radius": 3000,
         "importance": 0.15,
-    }
+    },
+    {
+        "name": "Capilla",
+        "query_to": "amenity == 'Capilla'",
+        "pob_query": "pobtot",
+        "amenity": "Capilla",
+        "attraction_query": "(num_workers + 1) * 100",
+        "radius": 3000,
+        "importance": 0.01,
+    },
+    {
+        "name": "Comedor",
+        "query_to": "amenity == 'Comedor'",
+        "pob_query": "pobtot",
+        "amenity": "Comedor",
+        "attraction_query": "(num_workers + 1) * 100",
+        "radius": 3000,
+        "importance": 0.01,
+    },
 ]
 DENUE_TO_AMENITY_MAPPING = [
     # Salud

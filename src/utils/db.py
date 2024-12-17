@@ -132,7 +132,7 @@ METRIC_MAPPING = {
         "level": "lots",
     },
     "subutilizacion": {
-        "query": lambda T: func.least(1 - (T.c.home_units / func.nullif(T.c.max_home_units, 0)), 1) * 100,
+        "query": lambda T: func.greatest(func.least(1 - (T.c.home_units / func.nullif(T.c.max_home_units, 0)), 1), 0) * 100,
         "reduce": "avg",
         "level": "lots",
     },
