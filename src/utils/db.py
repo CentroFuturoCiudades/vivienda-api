@@ -32,7 +32,7 @@ METRIC_MAPPING = {
         "level": "blocks",
     },
     "viviendas_habitadas_percent": {
-        "query": lambda T: percent(T.c.vivpar_hab, T.c.vivpar_hab),
+        "query": lambda T: percent(T.c.vivpar_hab, T.c.vivtot),
         "reduce": "avg",
         "level": "blocks",
     },
@@ -42,7 +42,7 @@ METRIC_MAPPING = {
         "level": "blocks",
     },
     "viviendas_deshabitadas_percent": {
-        "query": lambda T: percent(T.c.vivpar_des, T.c.vivpar_hab),
+        "query": lambda T: percent(T.c.vivpar_des, T.c.vivtot),
         "reduce": "avg",
         "level": "blocks",
     },
