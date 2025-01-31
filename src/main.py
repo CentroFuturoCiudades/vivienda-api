@@ -97,41 +97,56 @@ async def custom_query(payload: Dict[Any, Any]):
     condition = payload.get("condition")
     coordinates = payload.get("coordinates")
     proximity_mapping = payload.get("accessibility_info")
+    payload['group_ages'] = [POB_AGES_METRICS_MAPPING[age]
+                             for age in payload['group_ages']]
     level = payload.get("level", "blocks")
 
     id = "cvegeo" if level == "blocks" else "lot_id"
+    ids = await get_ids(coordinates, level)
 
     # TODO: Integrate so that it includes all selected metrics (including minutes and accessibility_score)
     if "minutes" in metrics:
-        ids = await get_ids(coordinates, level)
         df = select_minutes(level, ids, proximity_mapping)
         df = df[[id, "minutes"]]
         df = df.rename(columns={"minutes": "value"})
-        df = df.fillna(0)
-        return df.to_dict(orient="records")
-
-    if "accessibility_score" in metrics:
-        ids = await get_ids(coordinates, level)
+    elif "accessibility_score" in metrics:
         df = select_accessibility_score(level, ids, proximity_mapping)
         df['accessibility_score'] = np.log(df['accessibility_score'] + 1) * 17
-        print(df['accessibility_score'].describe())
         df = df[[id, "accessibility_score"]]
         df = df.rename(columns={"accessibility_score": "value"})
-        df = df.fillna(0)
-        return df.to_dict(orient="records")
-
-    ids = await get_ids(coordinates, level)
-    # _metrics = {k: v for k, v in metrics.items() if k not in ["minutes", "accessibility_score"]}
-    df = query_metrics(level, metrics, ids)
+    else:
+        df = query_metrics(level, metrics, ids, payload)
     df = df.fillna(0)
-    return df.to_dict(orient="records")
+    print(df)
+    df_dict = df.to_dict(orient="records")
+    quantiles = df["value"].quantile([0, 0.2, 0.4, 0.6, 0.8, 1])
+    dict_quantiles = quantiles.to_dict()
+    dict_quantiles = {str(k): v for k, v in dict_quantiles.items()}
+    dict_quantiles["mean"] = df["value"].mean()
+    dict_quantiles["std"] = df["value"].std()
+
+    return {"stats_info": dict_quantiles, "data": df_dict}
+
+POB_AGES_METRICS_MAPPING = {
+    "0-2": "0a2",
+    "3-5": "3a5",
+    "6-11": "6a11",
+    "12-14": "12a14",
+    "15-17": "15a17",
+    "18-24": "18a24",
+    "25-59": "25a59",
+    "60+": "60ymas",
+}
 
 
 @app.post("/predios")
 async def get_info(payload: Dict[Any, Any]):
-    ids = payload.get("lots")
+    coordinates = payload.get("coordinates")
     level = payload.get("type", "blocks")
+    ids = await get_ids(coordinates, level)
     proximity_mapping = payload.get("accessibility_info")
+    payload['group_ages'] = [POB_AGES_METRICS_MAPPING[age]
+                             for age in payload['group_ages']]
     # TODO: Pass cols instead of hardcoded
     cols = [
         "poblacion",
@@ -159,26 +174,14 @@ async def get_info(payload: Dict[Any, Any]):
         "subutilizacion",
         "subutilizacion_type",
         "num_levels",
-        "p_0a2_f",
-        "p_0a2_m",
-        "p_3a5_f",
-        "p_3a5_m",
-        "p_6a11_f",
-        "p_6a11_m",
-        "p_12a14_f",
-        "p_12a14_m",
-        "p_15a17_f",
-        "p_15a17_m",
-        "p_18a24_f",
-        "p_18a24_m",
-        "p_25a59_f",
-        "p_25a59_m",
-        "p_60ymas_f",
-        "p_60ymas_m",
+        "per_female_group_ages",
+        "per_male_group_ages",
+        "per_group_ages",
         "slope",
     ]
     try:
-        df = query_metrics(level, {col: col for col in cols}, ids)
+        df = query_metrics(level, {col: col for col in cols}, ids, payload)
+        print(df)
         new_cols = get_metrics_info(cols)
         new_cols = {k: v for k, v in zip(cols, new_cols)}
         if level == "lots":

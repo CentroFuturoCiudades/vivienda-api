@@ -14,6 +14,22 @@ def percent(numerator, denominator):
     )
 
 
+def get_per_group_ages(T, group_ages, metric):
+    if not group_ages:
+        return 0
+    type_mapping = {
+        "pobtot": "",
+        "pobmas": "_m",
+        "pobfem": "_f",
+    }
+    female_ages = [f"p_{age}{type_mapping[metric]}" for age in group_ages]
+    total_female = sum([
+        getattr(T.c, age)
+        for age in female_ages
+    ])
+    return percent(total_female, getattr(T.c, metric))
+
+
 MAPPING_REDUCE_FUNCS = {
     "sum": "sum",
     "avg": "mean",
@@ -22,230 +38,245 @@ MAPPING_REDUCE_FUNCS = {
 }
 METRIC_MAPPING = {
     "poblacion": {
-        "query": lambda T: T.c.pobtot,
+        "query": lambda T, _: T.c.pobtot,
         "reduce": "sum",
         "level": "blocks",
     },
     "viviendas_habitadas": {
-        "query": lambda T: T.c.vivpar_hab,
+        "query": lambda T, _: T.c.vivpar_hab,
         "reduce": "sum",
         "level": "blocks",
     },
     "viviendas_habitadas_percent": {
-        "query": lambda T: percent(T.c.vivpar_hab, T.c.vivtot),
+        "query": lambda T, _: percent(T.c.vivpar_hab, T.c.vivtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "viviendas_deshabitadas": {
-        "query": lambda T: T.c.vivpar_des,
+        "query": lambda T, _: T.c.vivpar_des,
         "reduce": "sum",
         "level": "blocks",
     },
     "viviendas_deshabitadas_percent": {
-        "query": lambda T: percent(T.c.vivpar_des, T.c.vivtot),
+        "query": lambda T, _: percent(T.c.vivpar_des, T.c.vivtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "grado_escuela": {
-        "query": lambda T: T.c.graproes,
+        "query": lambda T, _: T.c.graproes,
         "reduce": "avg",
         "level": "blocks",
     },
     "indice_bienestar": {
-        "query": lambda T: T.c.puntuaje_hogar_digno * 100,
+        "query": lambda T, _: T.c.puntuaje_hogar_digno * 100,
         "reduce": "avg",
         "level": "blocks",
     },
     "viviendas_tinaco": {
-        "query": lambda T: percent(T.c.vph_tinaco, T.c.vivpar_hab),
+        "query": lambda T, _: percent(T.c.vph_tinaco, T.c.vivpar_hab),
         "reduce": "avg",
         "level": "blocks",
     },
     "viviendas_pc": {
-        "query": lambda T: percent(T.c.vph_pc, T.c.vivpar_hab),
+        "query": lambda T, _: percent(T.c.vph_pc, T.c.vivpar_hab),
         "reduce": "avg",
         "level": "blocks",
     },
     "viviendas_auto": {
-        "query": lambda T: percent(T.c.vph_autom, T.c.vivpar_hab),
+        "query": lambda T, _: percent(T.c.vph_autom, T.c.vivpar_hab),
         "reduce": "avg",
         "level": "blocks",
     },
     "accessibility_score": {
-        "query": lambda T: T.c.accessibility_score * 100,
+        "query": lambda T, _: T.c.accessibility_score * 100,
         "reduce": "avg",
         "level": "blocks",
     },
     "minutes": {
-        "query": lambda T: T.c.minutes,
+        "query": lambda T, _: T.c.minutes,
         "reduce": "avg",
         "level": "blocks",
     },
     "density": {
-        "query": lambda T: T.c.density,
+        "query": lambda T, _: T.c.density,
         "reduce": "avg",
         "level": "lots",
     },
     "cos": {
-        "query": lambda T: T.c.cos,
+        "query": lambda T, _: T.c.cos,
         "reduce": "avg",
         "level": "lots",
     },
     "max_cos": {
-        "query": lambda T: T.c.max_cos,
+        "query": lambda T, _: T.c.max_cos,
         "reduce": "avg",
         "level": "lots",
     },
     "cus": {
-        "query": lambda T: T.c.cus,
+        "query": lambda T, _: T.c.cus,
         "reduce": "avg",
         "level": "lots",
     },
     "max_cus": {
-        "query": lambda T: T.c.max_cus,
+        "query": lambda T, _: T.c.max_cus,
         "reduce": "avg",
         "level": "lots",
     },
     "home_units": {
-        "query": lambda T: T.c.home_units,
+        "query": lambda T, _: T.c.home_units,
         "reduce": "sum",
         "level": "lots",
     },
     "max_density": {
-        "query": lambda T: T.c.max_density,
+        "query": lambda T, _: T.c.max_density,
         "reduce": "avg",
         "level": "lots",
     },
     "area": {
-        "query": lambda T: T.c.lot_area / 10_000,
+        "query": lambda T, _: T.c.lot_area / 10_000,
         "reduce": "sum",
         "level": "lots",
     },
     "max_num_levels": {
-        "query": lambda T: T.c.max_num_levels,
+        "query": lambda T, _: T.c.max_num_levels,
         "reduce": "avg",
         "level": "lots",
     },
     "max_home_units": {
-        "query": lambda T: T.c.max_home_units,
+        "query": lambda T, _: T.c.max_home_units,
         "reduce": "sum",
         "level": "lots",
     },
     "subutilizacion": {
-        "query": lambda T: func.greatest(func.least(1 - (T.c.home_units / func.nullif(T.c.max_home_units, 0)), 1), 0) * 100,
+        "query": lambda T, _: func.greatest(func.least(1 - (T.c.home_units / func.nullif(T.c.max_home_units, 0)), 1), 0) * 100,
         "reduce": "avg",
         "level": "lots",
     },
     "potential_population": {
-        "query": lambda T: T.c.potential_home_units * T.c.prom_ocup,
+        "query": lambda T, _: T.c.potential_home_units * T.c.prom_ocup,
         "reduce": "sum",
         "level": "lots",
     },
     "subutilizacion_type": {
-        "query": lambda T: T.c.num_levels,
+        "query": lambda T, _: T.c.num_levels,
         "reduce": "sum",
         "level": "lots",
     },
     "per_p_0a2_m": {
-        "query": lambda T: percent(T.c.p_0a2_m, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_0a2_m, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_0a2_f": {
-        "query": lambda T: percent(T.c.p_0a2_f, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_0a2_f, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_3a5_m": {
-        "query": lambda T: percent(T.c.p_3a5_m, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_3a5_m, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_3a5_f": {
-        "query": lambda T: percent(T.c.p_3a5_f, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_3a5_f, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_6a11_m": {
-        "query": lambda T: percent(T.c.p_6a11_m, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_6a11_m, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_6a11_f": {
-        "query": lambda T: percent(T.c.p_6a11_f, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_6a11_f, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_12a14_m": {
-        "query": lambda T: percent(T.c.p_12a14_m, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_12a14_m, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_12a14_f": {
-        "query": lambda T: percent(T.c.p_12a14_f, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_12a14_f, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_15a17_m": {
-        "query": lambda T: percent(T.c.p_15a17_m, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_15a17_m, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_15a17_f": {
-        "query": lambda T: percent(T.c.p_15a17_f, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_15a17_f, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_18a24_m": {
-        "query": lambda T: percent(T.c.p_18a24_m, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_18a24_m, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_18a24_f": {
-        "query": lambda T: percent(T.c.p_18a24_f, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_18a24_f, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_25a59_m": {
-        "query": lambda T: percent(T.c.p_25a59_m, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_25a59_m, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_25a59_f": {
-        "query": lambda T: percent(T.c.p_25a59_f, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_25a59_f, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_60ymas_m": {
-        "query": lambda T: percent(T.c.p_60ymas_m, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_60ymas_m, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "per_p_60ymas_f": {
-        "query": lambda T: percent(T.c.p_60ymas_f, T.c.pobtot),
+        "query": lambda T, _: percent(T.c.p_60ymas_f, T.c.pobtot),
         "reduce": "avg",
         "level": "blocks",
     },
     "num_levels": {
-        "query": lambda T: T.c.num_levels,
+        "query": lambda T, _: T.c.num_levels,
         "reduce": "avg",
         "level": "lots",
     },
     "max_num_levels": {
-        "query": lambda T: T.c.max_num_levels,
+        "query": lambda T, _: T.c.max_num_levels,
         "reduce": "avg",
         "level": "lots",
     },
     "num_levels": {
-        "query": lambda T: T.c.num_levels,
+        "query": lambda T, _: T.c.num_levels,
         "reduce": "avg",
         "level": "lots",
     },
     "slope": {
-        "query": lambda T: T.c.num_levels,
+        "query": lambda T, _: T.c.num_levels,
         "reduce": "avg",
         "level": "lots",
-    }
+    },
+    "per_female_group_ages": {
+        "query": lambda T, payload: get_per_group_ages(T, payload.get("group_ages"), "pobfem"),
+        "reduce": "avg",
+        "level": "blocks",
+    },
+    "per_male_group_ages": {
+        "query": lambda T, payload: get_per_group_ages(T, payload.get("group_ages"), "pobmas"),
+        "reduce": "avg",
+        "level": "blocks",
+    },
+    "per_group_ages": {
+        "query": lambda T, payload: get_per_group_ages(T, payload.get("group_ages"), "pobtot"),
+        "reduce": "avg",
+        "level": "blocks",
+    },
 }
 
 
@@ -288,7 +319,7 @@ def get_metrics_info(metrics: List[str]):
     return [get_metric(metric, Lots, Blocks) for metric in metrics]
 
 
-def query_metrics(level: str, metrics: Dict[str, str], ids: List[str] = None):
+def query_metrics(level: str, metrics: Dict[str, str], ids: List[str] = None, payload: Dict[str, str] = None):
     # TODO: Refactor code since it is too unnecessarily complex
     engine = get_engine()
     metadata = MetaData()
@@ -317,11 +348,11 @@ def query_metrics(level: str, metrics: Dict[str, str], ids: List[str] = None):
                 if metric_info["level"] == "lots":
                     func_reduce = getattr(
                         func, metric_info["reduce"])
-                    _metric = metric_info["query"](lots_alias)
+                    _metric = metric_info["query"](lots_alias, payload)
                     base_query = base_query.add_columns(
                         func_reduce(_metric).label(new_metric))
                 elif metric_info["level"] == "blocks":
-                    _metric = metric_info["query"](blocks_alias)
+                    _metric = metric_info["query"](blocks_alias, payload)
                     base_query = base_query.add_columns(
                         func.min(_metric).label(new_metric))
                 else:
@@ -343,12 +374,12 @@ def query_metrics(level: str, metrics: Dict[str, str], ids: List[str] = None):
                 # Check if the metric belongs to Lots or Blocks
                 metric_info = get_metric(metric, Lots, Blocks)
                 if metric_info["level"] == "lots":
-                    _metric = metric_info["query"](lots_alias)
+                    _metric = metric_info["query"](lots_alias, payload)
                     base_query = base_query.add_columns(
                         _metric.label(new_metric))
                 elif metric_info["level"] == "blocks":
                     # If we are at the "lots" level, and the metric comes from Blocks, simply return the value from Lots
-                    _metric = metric_info["query"](blocks_alias)
+                    _metric = metric_info["query"](blocks_alias, payload)
                     base_query = base_query.add_columns(
                         _metric.label(new_metric))
                 else:
