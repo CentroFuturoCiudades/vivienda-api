@@ -83,6 +83,7 @@ def process_in_chunks(file, table_name, engine, index_column, mapping, chunk_siz
     # Query and print the full data from the table
     data = pd.read_sql_query(f"SELECT * FROM {table_name}", engine)
     print(data)
+    print(data.columns.tolist())
 
 
 if __name__ == "__main__":
@@ -128,7 +129,8 @@ if __name__ == "__main__":
         'block_cus': 'float64',
         'home_units': 'float64',
         'density': 'float64',
-        'potential_home_units': 'float64'
+        'potential_home_units': 'float64',
+        'mean_slope': 'float64',
     }
     mapping_blocks = {
         "cvegeo": "object",
@@ -173,6 +175,7 @@ if __name__ == "__main__":
         "prom_ocup": "float64",
         "pro_ocup_c": "float64",
         "tvivparhab": "int64",
+        "vivparh_cv": "int64",
         "vph_1cuart": "int64",
         "vph_2cuart": "int64",
         "vph_3ymasc": "int64",

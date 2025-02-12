@@ -267,6 +267,7 @@ KEEP_COLUMNS = [
     'prom_ocup',
     'pro_ocup_c',
     'tvivparhab',
+    'vivparh_cv',
     'vph_1cuart',
     'vph_2cuart',
     'vph_3ymasc',

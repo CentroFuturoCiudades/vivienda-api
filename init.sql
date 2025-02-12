@@ -50,6 +50,7 @@ CREATE TABLE blocks (
     prom_ocup FLOAT,
     pro_ocup_c FLOAT,
     tvivparhab INTEGER,
+    vivparh_cv INTEGER,
     vph_1cuart INTEGER,
     vph_2cuart INTEGER,
     vph_3ymasc INTEGER,

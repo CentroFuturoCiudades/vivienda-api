@@ -10,6 +10,7 @@ import pandas as pd
 def percent(numerator, denominator):
     return case(
         (denominator == 0, 0),
+        (numerator > denominator, 100),
         else_=numerator * 100.0 / func.nullif(denominator, 0)
     )
 
@@ -43,12 +44,12 @@ METRIC_MAPPING = {
         "level": "blocks",
     },
     "viviendas_habitadas": {
-        "query": lambda T, _: T.c.vivpar_hab,
+        "query": lambda T, _: T.c.tvivparhab,
         "reduce": "sum",
         "level": "blocks",
     },
     "viviendas_habitadas_percent": {
-        "query": lambda T, _: percent(T.c.vivpar_hab, T.c.vivtot),
+        "query": lambda T, _: percent(T.c.tvivparhab, T.c.vivtot),
         "reduce": "avg",
         "level": "blocks",
     },
@@ -73,17 +74,17 @@ METRIC_MAPPING = {
         "level": "blocks",
     },
     "viviendas_tinaco": {
-        "query": lambda T, _: percent(T.c.vph_tinaco, T.c.vivpar_hab),
+        "query": lambda T, _: percent(T.c.vph_tinaco, T.c.vivparh_cv),
         "reduce": "avg",
         "level": "blocks",
     },
     "viviendas_pc": {
-        "query": lambda T, _: percent(T.c.vph_pc, T.c.vivpar_hab),
+        "query": lambda T, _: percent(T.c.vph_pc, T.c.vivparh_cv),
         "reduce": "avg",
         "level": "blocks",
     },
     "viviendas_auto": {
-        "query": lambda T, _: percent(T.c.vph_autom, T.c.vivpar_hab),
+        "query": lambda T, _: percent(T.c.vph_autom, T.c.vivparh_cv),
         "reduce": "avg",
         "level": "blocks",
     },
@@ -258,7 +259,7 @@ METRIC_MAPPING = {
         "level": "lots",
     },
     "slope": {
-        "query": lambda T, _: T.c.num_levels,
+        "query": lambda T, _: T.c.mean_slope,
         "reduce": "avg",
         "level": "lots",
     },

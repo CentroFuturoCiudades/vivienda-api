@@ -117,7 +117,12 @@ def process_blocks(gdf_blocks: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
     gdf_blocks['puntuaje_hogar_digno'] = 0
     for key, value in MAPPING_SCORE_VARS.items():
-        gdf_blocks['puntuaje_hogar_digno'] = gdf_blocks['puntuaje_hogar_digno'] + (gdf_blocks[key] / gdf_blocks['tvivparhab']) * value
+        temp = gdf_blocks.apply(lambda x:
+            0 if x['vivparh_cv'] == 0 else
+            100 if x[key] > x['vivparh_cv'] else
+            x[key] / x['vivparh_cv']
+        , axis=1)
+        gdf_blocks['puntuaje_hogar_digno'] = gdf_blocks['puntuaje_hogar_digno'] + (temp * value)
     gdf_blocks['puntuaje_hogar_digno'] = (gdf_blocks['puntuaje_hogar_digno'] - gdf_blocks['puntuaje_hogar_digno'].min()) / (gdf_blocks['puntuaje_hogar_digno'].max() - gdf_blocks['puntuaje_hogar_digno'].min())
 
     gdf_blocks['total_cuartos'] = gdf_blocks['vph_1cuart'] + \
@@ -152,7 +157,7 @@ if __name__ == "__main__":
 
     gdf_blocks = gather_blocks(
         args.state_code, args.state_name, args.city_code)
-    gdf_blocks = gdf_blocks[gdf_blocks.intersects(gdf_bounds.unary_union)]
+    # gdf_blocks = gdf_blocks[gdf_blocks.intersects(gdf_bounds.unary_union)]
     gdf_blocks = process_blocks(gdf_blocks)
 
     gdf_blocks.to_file(f"{args.output_dir}/{PROCESSED_BLOCKS_FILE}")

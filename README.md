@@ -65,14 +65,14 @@ docker system prune -a --volumes
 
 ## Setup Docker run app locally
 ```sh
-$ docker-compose up
-$ docker exec -it reimagina_urbano_app poetry run python -m src.scripts.populate_db -l "data/_primavera/lots.csv" -b "data/_primavera/blocks.csv" -a "data/_primavera/accessibility_trips.csv"
+$ docker-compose up -d
+$ docker exec -it reimagina_urbano_app poetry run python -m src.scripts.populate_db -l "data/_primavera/final/lots.csv" -b "data/_primavera/final/blocks.csv" -a "data/_primavera/final/accessibility_trips.csv"
 ```
 
 ## Setup Docker run app in production
 ```sh
 $ docker-compose up -d
-$ docker exec -it reimagina_urbano_app poetry run python -m src.scripts.populate_db -l "https://reimaginaurbanostorage.blob.core.windows.net/primavera/lots.csv" -b "https://reimaginaurbanostorage.blob.core.windows.net/primavera/blocks.csv" -a "https://reimaginaurbanostorage.blob.core.windows.net/primavera/accessibility_trips.csv"
+$ docker exec -it reimagina_urbano_app poetry run python -m src.scripts.populate_db -l "https://reimaginaurbanostorage.blob.core.windows.net/culiacan/lots.csv" -b "https://reimaginaurbanostorage.blob.core.windows.net/culiacan/blocks.csv" -a "https://reimaginaurbanostorage.blob.core.windows.net/culiacan/accessibility_trips.csv"
 ```
 
 ## Descarga de datos INEGI

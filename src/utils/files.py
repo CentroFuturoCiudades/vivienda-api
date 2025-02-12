@@ -46,7 +46,7 @@ def get_blob_url(file_name: str) -> str:
     if os.getenv("ENVIRONMENT") == "local":
         return f"data/_primavera/final/{file_name}"
     access_token = os.getenv("BLOB_TOKEN")
-    return f"{BLOB_URL}/primavera/{file_name}?{access_token}"
+    return f"{BLOB_URL}/culiacan/{file_name}?{access_token}"
 
 def download_file(url):
     if os.getenv("ENVIRONMENT") == "local":
