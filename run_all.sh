@@ -1,7 +1,6 @@
 FOLDER=$1
 STATE_CODE=$2
-REGION=$3
-VERBOSE_FLAG=$4
+VERBOSE_FLAG=$3
 
 # TODO: Have csv file of regions with their codes and names
 STATE_NAME='Sinaloa'
@@ -32,7 +31,7 @@ mkdir -p "$FOLDER/final"
 # echo "Gathering establishments"
 # time poetry run python3 -m src.scripts.gather_denue "$original_dir" "$tmp_dir" $STATE_CODE $CITY_NAME $VERBOSE_OPTION
 # echo "Gathering buildings"
-# time poetry run python3 -m src.scripts.gather_buildings "$original_dir" "$tmp_dir" $CITY_NAME $VERBOSE_OPTION
+# time poetry run python3 -m src.scripts.gather_buildings2 "$original_dir" "$tmp_dir" $CITY_NAME $VERBOSE_OPTION
 
 # echo "Processing lots"
 # time poetry run python3 -m src.scripts.process_lots "$original_dir" "$tmp_dir" $STATE_CODE $STATE_NAME $CITY_CODE $VERBOSE_OPTION
@@ -44,7 +43,7 @@ mkdir -p "$FOLDER/final"
 # echo "Calculating accessibility"
 # time poetry run python3 -m src.scripts.accessibility "$original_dir" "$tmp_dir" $VERBOSE_OPTION
 # echo "Calculating utilization"
-# time python3 -m src.scripts.utilization "$original_dir" "$tmp_dir" $VERBOSE_OPTION
+# time poetry run python3 -m src.scripts.utilization "$original_dir" "$tmp_dir" $VERBOSE_OPTION
 
 # cp "$tmp_dir/accessibility_blocks.fgb" "$final_dir/blocks_complete.fgb"
 # cp "$tmp_dir/utilization_lots.fgb" "$final_dir/lots_complete.fgb"
@@ -53,8 +52,10 @@ mkdir -p "$FOLDER/final"
 # cp "$tmp_dir/amenities.fgb" "$final_dir/amenities.fgb"
 # cp "$tmp_dir/accessibility_points.fgb" "$final_dir/accessibility_points.fgb"
 
+# OUTSIDE: Run notebook slope
 # OUTSIDE: Run notebook final
 # OUTSIDE: Run notebook ideal buildings
 
+# psql -h localhost -p 5432 -U uriels96 -d reimaginaurbano -f init.sql
 # echo "Populate DB"
 # time poetry run python -m src.scripts.populate_db -l "$final_dir/lots.csv" -b "$final_dir/blocks.csv" -a "$final_dir/accessibility_trips.csv"

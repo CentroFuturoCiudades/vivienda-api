@@ -117,7 +117,6 @@ async def custom_query(payload: Dict[Any, Any]):
     else:
         df = query_metrics(level, metrics, ids, payload)
     df = df.fillna(0)
-    print(df)
     df_dict = df.to_dict(orient="records")
     quantiles = df["value"].quantile([0, 0.2, 0.4, 0.6, 0.8, 1])
     dict_quantiles = quantiles.to_dict()
@@ -181,7 +180,6 @@ async def get_info(payload: Dict[Any, Any]):
     ]
     try:
         df = query_metrics(level, {col: col for col in cols}, ids, payload)
-        print(df)
         new_cols = get_metrics_info(cols)
         new_cols = {k: v for k, v in zip(cols, new_cols)}
         if level == "lots":

@@ -86,7 +86,8 @@ CREATE TABLE blocks (
     minutes FLOAT,
     node_ids BIGINT,
     latitud FLOAT,
-    longitud FLOAT
+    longitud FLOAT,
+    geometry TEXT
 );
 
 -- Create the 'lots' table
@@ -131,7 +132,8 @@ CREATE TABLE lots (
     num_workers INTEGER,
     num_establishments INTEGER,
     num_properties INTEGER,
-    mean_slope FLOAT
+    mean_slope FLOAT,
+    geometry TEXT
 );
 
 CREATE TABLE accessibility_trips (

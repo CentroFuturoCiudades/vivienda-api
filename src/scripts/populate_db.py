@@ -14,17 +14,22 @@ from src.utils.db import get_engine
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Join establishments with lots")
-    parser.add_argument("-l","--lots_file", required=False, type=str, help="The file with all the lots data")
-    parser.add_argument("-b", "--blocks_file", required=False, type=str, help="The file with all the blocks data")
-    parser.add_argument("-a", "--accessibility_file", required=False, type=str, help="The file with all the accessibility data")
+    parser = argparse.ArgumentParser(
+        description="Join establishments with lots")
+    parser.add_argument("-l", "--lots_file", required=False,
+                        type=str, help="The file with all the lots data")
+    parser.add_argument("-b", "--blocks_file", required=False,
+                        type=str, help="The file with all the blocks data")
+    parser.add_argument("-a", "--accessibility_file", required=False,
+                        type=str, help="The file with all the accessibility data")
     return parser.parse_args()
+
 
 def clean_and_cast_types(df, mapping):
     # Convert column names to lowercase
     df.columns = [col.lower() for col in df.columns]
     mapping = {key.lower(): value for key, value in mapping.items()}
-    
+
     # Replace NaN with None
     df = df.replace({np.nan: None})
 
@@ -35,22 +40,24 @@ def clean_and_cast_types(df, mapping):
                 df[column] = df[column].astype(str)
             elif mapping[column] in ["int64", "int", int]:
                 # Coerce non-integer values to NaN and downcast
-                df[column] = pd.to_numeric(df[column], errors="coerce", downcast="integer")
+                df[column] = pd.to_numeric(
+                    df[column], errors="coerce", downcast="integer")
             elif mapping[column] in ["float64", "float", float]:
                 # Coerce non-float values to NaN
                 df[column] = pd.to_numeric(df[column], errors="coerce")
                 # Round float columns to 6 decimal places to avoid precision issues
                 df[column] = df[column].round(6)
-                
+
                 # Check for non-float values in float columns for debugging
-                invalid_floats = df[column][~df[column].apply(lambda x: isinstance(x, (float, int, type(None))))]
+                invalid_floats = df[column][~df[column].apply(
+                    lambda x: isinstance(x, (float, int, type(None))))]
                 if not invalid_floats.empty:
                     print(f"Invalid float values found in column {column}:")
                     print(invalid_floats)
         # drop columns not in mapping
         else:
             df = df.drop(columns=[column])
-    
+
     return df
 
 
@@ -131,6 +138,7 @@ if __name__ == "__main__":
         'density': 'float64',
         'potential_home_units': 'float64',
         'mean_slope': 'float64',
+        'geometry': 'object',
     }
     mapping_blocks = {
         "cvegeo": "object",
@@ -197,6 +205,7 @@ if __name__ == "__main__":
         "node_ids": "int64",
         "latitud": "float64",
         "longitud": "float64",
+        'geometry': 'object',
     }
     mapping_trips = {
         "origin_id": "int64",
@@ -214,10 +223,13 @@ if __name__ == "__main__":
     engine = get_engine()
 
     if args.lots_file:
-        process_in_chunks(args.lots_file, "lots", engine, index_column="lot_id", mapping=mapping_lots)
+        process_in_chunks(args.lots_file, "lots", engine,
+                          index_column="lot_id", mapping=mapping_lots)
 
     if args.blocks_file:
-        process_in_chunks(args.blocks_file, "blocks", engine, index_column="cvegeo", mapping=mapping_blocks)
+        process_in_chunks(args.blocks_file, "blocks", engine,
+                          index_column="cvegeo", mapping=mapping_blocks)
 
     if args.accessibility_file:
-        process_in_chunks(args.accessibility_file, "accessibility_trips", engine, index_column="origin_id", mapping=mapping_trips)
+        process_in_chunks(args.accessibility_file, "accessibility_trips",
+                          engine, index_column="origin_id", mapping=mapping_trips)
