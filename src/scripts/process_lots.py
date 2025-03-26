@@ -1,4 +1,7 @@
 import argparse
+import io
+import os
+import re
 import shutil
 import zipfile
 from io import BytesIO
@@ -7,14 +10,15 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import pandas as pd
 import requests
-import os
-import io
-import re
-from sklearn.preprocessing import MinMaxScaler
 
-from src.scripts.utils.constants import CSV_PATH_MZA_2020, KEEP_COLUMNS, URL_MZA_2020, MAPPING_SCORE_VARS, BOUNDS_FILE, PROCESSED_BLOCKS_FILE
-from src.scripts.utils.utils import normalize
-
+from src.scripts.utils.constants import (
+    BOUNDS_FILE,
+    CSV_PATH_MZA_2020,
+    KEEP_COLUMNS,
+    MAPPING_SCORE_VARS,
+    PROCESSED_BLOCKS_FILE,
+    URL_MZA_2020,
+)
 
 INEGI_GEO_BLOCKS_URL = 'https://www.inegi.org.mx/contenidos/productos/prod_serv/contenidos/espanol/bvinegi/productos/geografia/rural/SHP_2023/{state}/{municipality_code}_s.zip'
 INEGI_GEO_BLOCKS_REGEX = r'.*/conjunto_de_datos/\d+m\.(shp|shx|dbf|prj)'
@@ -118,12 +122,13 @@ def process_blocks(gdf_blocks: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     gdf_blocks['puntuaje_hogar_digno'] = 0
     for key, value in MAPPING_SCORE_VARS.items():
         temp = gdf_blocks.apply(lambda x:
-            0 if x['vivparh_cv'] == 0 else
-            100 if x[key] > x['vivparh_cv'] else
-            x[key] / x['vivparh_cv']
-        , axis=1)
-        gdf_blocks['puntuaje_hogar_digno'] = gdf_blocks['puntuaje_hogar_digno'] + (temp * value)
-    gdf_blocks['puntuaje_hogar_digno'] = (gdf_blocks['puntuaje_hogar_digno'] - gdf_blocks['puntuaje_hogar_digno'].min()) / (gdf_blocks['puntuaje_hogar_digno'].max() - gdf_blocks['puntuaje_hogar_digno'].min())
+                                0 if x['vivparh_cv'] == 0 else
+                                100 if x[key] > x['vivparh_cv'] else
+                                x[key] / x['vivparh_cv'], axis=1)
+        gdf_blocks['puntuaje_hogar_digno'] = gdf_blocks['puntuaje_hogar_digno'] + \
+            (temp * value)
+    gdf_blocks['puntuaje_hogar_digno'] = (gdf_blocks['puntuaje_hogar_digno'] - gdf_blocks['puntuaje_hogar_digno'].min()) / (
+        gdf_blocks['puntuaje_hogar_digno'].max() - gdf_blocks['puntuaje_hogar_digno'].min())
 
     gdf_blocks['total_cuartos'] = gdf_blocks['vph_1cuart'] + \
         (gdf_blocks['vph_2cuart'] * 2) + (gdf_blocks['vph_3ymasc'] * 3)

@@ -9,15 +9,18 @@ TTL = 3600 * 15 * 24  # seconds
 BASE_LOCATION = os.getenv("BASE_FILE_LOCATION", "./temp")
 TIMESTAMP_FILE = f"{BASE_LOCATION}/file_timestamps.json"
 
+
 def load_timestamps():
     if os.path.exists(TIMESTAMP_FILE):
-        with open(TIMESTAMP_FILE, 'r') as file:
+        with open(TIMESTAMP_FILE, "r") as file:
             return json.load(file)
     return {}
 
+
 def save_timestamps(timestamps):
-    with open(TIMESTAMP_FILE, 'w') as file:
+    with open(TIMESTAMP_FILE, "w") as file:
         json.dump(timestamps, file)
+
 
 def get_file(url):
     # Parse the URL to get the file name
@@ -41,12 +44,16 @@ def get_file(url):
     print("File downloaded")
     return file_path
 
+
 BLOB_URL = "https://reimaginaurbanostorage.blob.core.windows.net"
+
+
 def get_blob_url(file_name: str) -> str:
     if os.getenv("ENVIRONMENT") == "local":
         return f"data/_primavera/final/{file_name}"
     access_token = os.getenv("BLOB_TOKEN")
     return f"{BLOB_URL}/culiacan/{file_name}?{access_token}"
+
 
 def download_file(url):
     if os.getenv("ENVIRONMENT") == "local":
@@ -66,7 +73,7 @@ def download_file(url):
     response.raise_for_status()  # Check if the request was successful
 
     # Save the file locally
-    with open(file_path, 'wb') as file:
+    with open(file_path, "wb") as file:
         file.write(response.content)
 
     # Update the timestamps
