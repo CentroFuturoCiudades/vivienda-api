@@ -13,7 +13,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/create_tables.sql
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}"]
+      test: [ "CMD", "pg_isready", "-U", "${POSTGRES_USER}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -33,6 +33,7 @@ services:
       POSTGRES_HOST: reimagina_urbano_db
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
     depends_on:
       reimagina_urbano_db:
@@ -40,6 +41,6 @@ services:
     volumes:
       - ./src:/app/src
       - ./scripts:/app/scripts
-    command: ["poetry", "run", "gunicorn", "src.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+    command: [ "poetry", "run", "gunicorn", "src.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000" ]
 volumes:
   pgdata:
