@@ -18,6 +18,27 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
     volumes:
       - ./src:/app/src
+    networks:
+      - net
     command: [ "poetry", "run", "gunicorn", "src.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000" ]
-volumes:
-  pgdata:
+  nginx:
+    image: nginx:latest
+    container_name: nginx-proxy
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./nginx/certs:/etc/nginx/certs
+    depends_on:
+      - reimagina_urbano_app
+    networks:
+      - net
+
+networks:
+  net:
+    driver: bridge
