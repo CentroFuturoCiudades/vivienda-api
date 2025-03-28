@@ -50,4 +50,4 @@ fi
 
 # 7. Start app with domain in env
 echo "🚀 Starting Docker Compose with DOMAIN=$DOMAIN"
-DOMAIN="$DOMAIN" docker-compose up -d --build
+docker compose up -d --build
