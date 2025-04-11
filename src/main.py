@@ -91,17 +91,18 @@ async def custom_query(payload: Dict[Any, Any]):
 
     # TODO: Integrate so that it includes all selected metrics (including minutes and accessibility_score)
     if "minutes" in metrics:
-        df = select_minutes(level, coordinates, proximity_mapping)
+        df = await select_minutes(level, coordinates, proximity_mapping)
         df = df[[id, "minutes"]]
         df = df.rename(columns={"minutes": "value"})
     elif "accessibility_score" in metrics:
-        df = select_accessibility_score(level, coordinates, proximity_mapping)
+        df = await select_accessibility_score(
+            level, coordinates, proximity_mapping)
         df["accessibility_score"] = np.log(
             df["accessibility_score"] + 1) * 17
         df = df[[id, "accessibility_score"]]
         df = df.rename(columns={"accessibility_score": "value"})
     else:
-        df = query_metrics(level, metrics, coordinates, payload)
+        df = await query_metrics(level, metrics, coordinates, payload)
     df = df.replace([np.inf, -np.inf], 0).fillna(0)
     print('--- Data ---')
     print(df)
@@ -164,7 +165,7 @@ async def get_info(payload: Dict[Any, Any]):
         "slope",
     ]
     try:
-        df = reduce_data(cols, level, payload)
+        df = await reduce_data(cols, level, payload)
         df = df.replace([np.inf, -np.inf], 0).fillna(0)
         results = df.to_dict()
         print('--- Data Reduce ---')
@@ -186,7 +187,7 @@ async def get_polygon_segment(payload: Dict[Any, Any]):
     coordinates = payload.get("coordinates")
 
     if layer == "blocks" or layer == "lots" or layer == "amenities" or layer == "accessibility_points":
-        gdf = get_geometry(layer, coordinates)
+        gdf = await get_geometry(layer, coordinates)
         print('--- Polygon NO coordinates ---')
         print(gdf)
         with io.BytesIO() as output:
@@ -212,10 +213,10 @@ async def get_polygon_segment(payload: Dict[Any, Any]):
             return Response(content=contents, media_type="application/octet-stream")
 
 
-def reduce_data(cols: List[str], level: str, payload: Dict[Any, Any]):
+async def reduce_data(cols: List[str], level: str, payload: Dict[Any, Any]):
     coordinates = payload.get("coordinates", None)
     proximity_mapping = payload.get("accessibility_info")
-    df = query_metrics(level, {col: col for col in cols}, coordinates, payload)
+    df = await query_metrics(level, {col: col for col in cols}, coordinates, payload)
     new_cols = get_metrics_info(cols)
     new_cols = {k: v for k, v in zip(cols, new_cols)}
     if level == "lots":
@@ -231,7 +232,7 @@ def reduce_data(cols: List[str], level: str, payload: Dict[Any, Any]):
         for k, v in new_cols.items()
     })
     id = "block_id" if level == "blocks" else "lot_id"
-    df_minutes = select_minutes(level, coordinates, proximity_mapping)
+    df_minutes = await select_minutes(level, coordinates, proximity_mapping)
     df_minutes = df_minutes[[id, "minutes"]]
     df_minutes = df_minutes.aggregate({"minutes": "mean"})
     if not df_minutes.empty:
@@ -305,12 +306,12 @@ async def extract_insights(payload: Dict[Any, Any]):
     ]
 
     # extract all the data from the database for both coordinates
-    df1 = query_metrics(
+    df1 = await query_metrics(
         level, {col: col for col in cols}, coordinates, payload)
-    df1 = reduce_data(df1, cols, level)
-    df2 = query_metrics(
+    df1 = await reduce_data(df1, cols, level)
+    df2 = await query_metrics(
         level, {col: col for col in cols}, coordinates_compare, payload)
-    df2 = reduce_data(df2, cols, level)
+    df2 = await reduce_data(df2, cols, level)
 
     df_obs = df2[cols] - df1[cols]
 

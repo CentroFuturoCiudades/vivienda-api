@@ -1,12 +1,13 @@
 import os
-from functools import lru_cache
+from functools import cache
 from typing import Any, Dict, List
 
 import geopandas as gpd
 import pandas as pd
 from geoalchemy2 import Geometry
-from sqlalchemy import Column, JSON, MetaData, Table, Text, case, create_engine, desc, func, select, text
+from sqlalchemy import JSON, Column, MetaData, Table, Text, case, create_engine, desc, func, select, text
 from sqlalchemy.orm import Session, aliased
+from starlette.concurrency import run_in_threadpool
 
 
 def percent(numerator, denominator):
@@ -392,7 +393,7 @@ def get_metric(metric: str, Lots, Blocks):
             }
 
 
-@lru_cache()
+@cache
 def get_engine():
     user = os.getenv("POSTGRES_USER")
     password = os.getenv("POSTGRES_PASSWORD")
@@ -400,22 +401,43 @@ def get_engine():
     port = os.getenv("POSTGRES_PORT", "5432")
     db = os.getenv("POSTGRES_DB", "reimaginaurbano")
 
-    connection_string = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
-    return create_engine(connection_string)
+    connection_string = (
+        f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
+    )
+    # optional ping to avoid stale connections
+    return create_engine(connection_string, pool_pre_ping=True)
 
 
-def gdf_query(query: str) -> gpd.GeoDataFrame:
-    engine = get_engine()
-    with Session(engine) as session:
-        gdf = gpd.read_postgis(query, session.bind, geom_col="geometry")
-        return gdf
+async def safe_read_sql(query: str,
+                        bind,
+                        is_gdf=False) -> pd.DataFrame:
+    # if await request.is_disconnected():
+    #    print("Cancelled before DB call")
+    #    return pd.DataFrame()
+
+    if is_gdf:
+        df = await run_in_threadpool(lambda: gpd.read_postgis(query, bind, geom_col="geometry"))
+    else:
+        df = await run_in_threadpool(lambda: pd.read_sql(query, bind))
+    # if await request.is_disconnected():
+    #     print("Cancelled after DB call")
+    #     return pd.DataFrame()
+
+    return df
 
 
-def df_query(query: str) -> gpd.GeoDataFrame:
-    engine = get_engine()
-    with Session(engine) as session:
-        df = pd.read_sql(query, session.bind)
-        return df
+# def gdf_query(query: str) -> gpd.GeoDataFrame:
+#    engine = get_engine()
+#    with Session(engine) as session:
+#        gdf = gpd.read_postgis(query, session.bind, geom_col="geometry")
+#        return gdf
+
+
+# def df_query(query: str) -> gpd.GeoDataFrame:
+#    engine = get_engine()
+#    with Session(engine) as session:
+#        df = pd.read_sql(query, session.bind)
+#        return df
 
 
 def get_metrics_info(metrics: List[str]):
@@ -426,10 +448,10 @@ def get_metrics_info(metrics: List[str]):
     return [get_metric(metric, Lots, Blocks) for metric in metrics]
 
 
-def query_metrics(level: str,
-                  metrics: Dict[str, str],
-                  coordinates: List[List[float]] = None,
-                  payload: Dict[str, str] = None):
+async def query_metrics(level: str,
+                        metrics: Dict[str, str],
+                        coordinates: List[List[float]] = None,
+                        payload: Dict[str, str] = None):
     # TODO: Refactor code since it is too unnecessarily complex
     engine = get_engine()
     metadata = MetaData()
@@ -455,8 +477,6 @@ def query_metrics(level: str,
             for metric, new_metric in metrics.items():
                 # Check if the metric belongs to Lots or Blocks
                 metric_info = get_metric(metric, Lots, Blocks)
-                print(metric)
-                print(metric_info)
                 if metric_info["level"] == "lots":
                     func_reduce = getattr(func, metric_info["reduce"])
                     _metric = metric_info["query"](lots_alias, payload)
@@ -511,11 +531,13 @@ def query_metrics(level: str,
             raise ValueError(f"Unknown level: {level}")
         print(base_query)
 
-        df = pd.read_sql(base_query.statement, session.bind)
+        # df = pd.read_sql(base_query.statement, session.bind)
+        df = await safe_read_sql(
+            base_query.statement, session.bind)
         return df
 
 
-def select_minutes(
+async def select_minutes(
     level: str, coordinates: List[List[float]], amenities: List[str]
 ):
     engine = get_engine()
@@ -548,7 +570,8 @@ def select_minutes(
         if amenities:
             query = query.filter(AccessibilityTrips.c.amenity.in_(amenities))
         query = query.group_by(column)
-        df = pd.read_sql(query.statement, session.bind)
+        df = await safe_read_sql(
+            query.statement, session.bind)
         return df
 
 
@@ -613,7 +636,7 @@ def select_furthest_amenity(level: str, coordinates: List[List[float]], amenitie
         return df
 
 
-def select_accessibility_score(
+async def select_accessibility_score(
     level: str, coordinates: List[List[float]], amenities: List[str]
 ):
     engine = get_engine()  # Ensure this function is defined to get the engine
@@ -676,7 +699,7 @@ def select_accessibility_score(
             column, AccessibilityTrips.c.amenity, AccessibilityTrips.c.origin_id)
 
         # Step 3: Execute the intermediate query and store it as a DataFrame
-        intermediate_df = pd.read_sql(
+        intermediate_df = await safe_read_sql(
             intermediate_query.statement, session.bind)
 
         # Step 4: Aggregate the final accessibility score by origin_id only
@@ -693,64 +716,66 @@ def select_accessibility_score(
         return final_df
 
 
-def execute_query(query: str, geometry: bool = False):
-    engine = get_engine()
-    with Session(engine) as session:
-        df = pd.read_sql(query, session.bind)
-        if geometry:
-            gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
-            return gdf
-        return df
+# def execute_query(query: str, geometry: bool = False):
+#     engine = get_engine()
+#     with Session(engine) as session:
+#         df = pd.read_sql(query, session.bind)
+#         if geometry:
+#             gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
+#             return gdf
+#         return df
 
 
-def get_geometry(layer: str, coordinates: List[List[float]]):
+async def get_geometry(layer: str, coordinates: List[List[float]]):
     engine = get_engine()
     metadata = MetaData()
 
-    if layer == "blocks":
-        table = Table("blocks",
-                      metadata,
-                      Column("block_id", Text),
-                      Column("geometry", Geometry("POLYGON", srid=4326)),
-                      schema="marts")
-        query = select(table.c.block_id, table.c.geometry)
-    elif layer == "lots":
-        table = Table("lots",
-                      metadata,
-                      Column("lot_id", Text),
-                      Column("block_id", Text),
-                      Column("geometry", Geometry("POLYGON", srid=4326)),
-                      schema="marts")
-        query = select(table.c.lot_id, table.c.geometry)
-    elif layer == "amenities" or layer == "accessibility_points":
-        print("Fetching amenities")
-        table = Table("amenities",
-                      metadata,
-                      Column("id", Text),
-                      Column("amenity", Text),
-                      Column("name", Text),
-                      Column("capacity", Text),
-                      Column("control", Text),
-                      Column("source", Text),
-                      Column("num_visits", Text),
-                      Column("visits_category", Text),
-                      Column("extra_data", JSON),
-                      Column("geometry", Geometry("POLYGON", srid=4326)),
-                      schema="marts")
-        query = select(table.c.id, table.c.name, table.c.amenity,
-                       table.c.capacity, table.c.control, table.c.source, table.c.num_visits, table.c.visits_category, table.c.extra_data, table.c.geometry,
-                       func.ST_Area(func.ST_Transform(table.c.geometry, 3857)).label('area'))
+    with Session(engine) as session:
+        if layer == "blocks":
+            table = Table("blocks",
+                          metadata,
+                          Column("block_id", Text),
+                          Column("geometry", Geometry("POLYGON", srid=4326)),
+                          schema="marts")
+            query = select(table.c.block_id, table.c.geometry)
+        elif layer == "lots":
+            table = Table("lots",
+                          metadata,
+                          Column("lot_id", Text),
+                          Column("block_id", Text),
+                          Column("geometry", Geometry("POLYGON", srid=4326)),
+                          schema="marts")
+            query = select(table.c.lot_id, table.c.geometry)
+        elif layer == "amenities" or layer == "accessibility_points":
+            print("Fetching amenities")
+            table = Table("amenities",
+                          metadata,
+                          Column("id", Text),
+                          Column("amenity", Text),
+                          Column("name", Text),
+                          Column("capacity", Text),
+                          Column("control", Text),
+                          Column("source", Text),
+                          Column("num_visits", Text),
+                          Column("visits_category", Text),
+                          Column("extra_data", JSON),
+                          Column("geometry", Geometry("POLYGON", srid=4326)),
+                          schema="marts")
+            query = select(
+                table.c.id, table.c.name, table.c.amenity, table.c.capacity,
+                table.c.control, table.c.source, table.c.num_visits,
+                table.c.visits_category, table.c.extra_data, table.c.geometry,
+                func.ST_Area(func.ST_Transform(table.c.geometry,
+                                               3857)).label('area'))
 
-    else:
-        raise ValueError(f"Unknown layer: {layer}")
+        else:
+            raise ValueError(f"Unknown layer: {layer}")
 
     query = fit_to_boundaries(table, query, coordinates)
 
-    with Session(engine) as session:
-        gdf = gpd.read_postgis(query, session.bind, geom_col="geometry")
-
-    print(layer)
-    print(gdf)
+    #    gdf = gpd.read_postgis(query, session.bind, geom_col="geometry")
+    gdf = await safe_read_sql(
+        query, session.bind, is_gdf=True)
     return gdf
 
 
