@@ -12,7 +12,21 @@ TIMESTAMP_FILE = f"{BASE_LOCATION}/file_timestamps.json"
 def load_timestamps():
     if os.path.exists(TIMESTAMP_FILE):
         with open(TIMESTAMP_FILE, 'r') as file:
-            return json.load(file)
+            content = file.read().strip()
+
+            # Try to load normally
+            try:
+                return json.load(file)
+            except json.JSONDecodeError:
+                # Attempt auto-fix for trailing characters
+                while content and content[-1] not in ['}', ']']:
+                    content = content[:-1]
+
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError:
+                    # If still bad, return empty dict
+                    return {}
     return {}
 
 def save_timestamps(timestamps):
