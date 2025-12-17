@@ -1,4 +1,4 @@
-name: Build and Deploy FastAPI to Azure VM
+name: Build and Deploy FastAPI to Azure VM (Local Image)
 
 on:
   push:
@@ -11,47 +11,62 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout the repository
+      # 1. Checkout repository
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      # 2. Log in to Azure Container Registry
-      - name: Log in to Azure Container Registry
-        uses: azure/docker-login@v1
-        with:
-          login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-
-      # 3. Build and Push Docker Image
-      - name: Build and Push Docker Image
-        run: |
-          IMAGE_TAG=${{ secrets.REGISTRY_LOGIN_SERVER }}/reimaginaurbano:${{ github.sha }}
-          docker build . -t $IMAGE_TAG
-          docker push $IMAGE_TAG
-
-      # 4. Set up SSH Agent and Add SSH Key
+      # 2. Set up SSH agent
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.7.0
         with:
           ssh-private-key: ${{ secrets.AZURE_SSH_KEY }}
 
-      # 5. Deploy to Azure VM
-      - name: Deploy to Azure VM
+      # 3. Copy source code to VM
+      - name: Copy project to Azure VM
         run: |
-          IMAGE_TAG=${{ secrets.REGISTRY_LOGIN_SERVER }}/reimaginaurbano:${{ github.sha }}
-          ssh -o StrictHostKeyChecking=no ${{ secrets.AZURE_SSH_USER }}@${{ secrets.AZURE_VM_IP }} << EOF
-            docker pull $IMAGE_TAG
+          rsync -avz --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            ./ \
+            ${{ secrets.AZURE_SSH_USER }}@${{ secrets.AZURE_VM_IP }}:/home/${{ secrets.AZURE_SSH_USER }}/reimagina_urbano
+
+      # 4. Build & run Docker image ON the VM
+      - name: Build and Run Docker on Azure VM
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.AZURE_SSH_USER }}@${{ secrets.AZURE_VM_IP }} << 'EOF'
+            
+            set -e
+
+            cd ~/reimagina_urbano
+
+            IMAGE_NAME=reimaginaurbano:latest
+
+            echo "Building Docker image locally..."
+            docker build -t $IMAGE_NAME .
+
+            echo "Stopping old container..."
             docker stop reimagina_urbano_app || true
             docker rm reimagina_urbano_app || true
+
+            echo "Starting new container..."
             docker run -d \
               --name reimagina_urbano_app \
               -p 8000:8000 \
-              -e POSTGRES_USER=${{ secrets.POSTGRES_USER }} \
-              -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-              -e POSTGRES_HOST=${{ secrets.POSTGRES_HOST }} \
+              -e POSTGRES_USER="${POSTGRES_USER}" \
+              -e POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
+              -e POSTGRES_HOST="${POSTGRES_HOST}" \
               -e POSTGRES_PORT=5432 \
-              -e POSTGRES_DB=${{ secrets.POSTGRES_DB }} \
-              -e ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }} \
-              $IMAGE_TAG
+              -e POSTGRES_DB="${POSTGRES_DB}" \
+              -e ALLOWED_ORIGINS="${ALLOWED_ORIGINS}" \
+              --restart unless-stopped \
+              $IMAGE_NAME
+
+            echo "Deployment complete."
           EOF
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
