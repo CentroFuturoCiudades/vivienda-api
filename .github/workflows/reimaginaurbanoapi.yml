@@ -41,39 +41,33 @@ jobs:
       - name: Build and Run Docker on Azure VM
         run: |
           ssh -o StrictHostKeyChecking=no \
-            ${{ secrets.AZURE_SSH_USER }}@${{ secrets.AZURE_VM_IP }} << 'EOF'
-            
-            set -e
+            ${{ secrets.AZURE_SSH_USER }}@${{ secrets.AZURE_VM_IP }} \
+            POSTGRES_USER="${{ secrets.POSTGRES_USER }}" \
+            POSTGRES_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}" \
+            POSTGRES_HOST="${{ secrets.POSTGRES_HOST }}" \
+            POSTGRES_DB="${{ secrets.POSTGRES_DB }}" \
+            ALLOWED_ORIGINS="${{ secrets.ALLOWED_ORIGINS }}" \
+            << 'EOF'
 
-            cd ~/reimagina_urbano
+              set -e
 
-            IMAGE_NAME=reimaginaurbano:latest
+              cd ~/reimagina_urbano
 
-            echo "Building Docker image locally..."
-            docker build -t $IMAGE_NAME .
+              IMAGE_NAME=reimaginaurbano:latest
 
-            echo "Stopping old container..."
-            docker stop reimagina_urbano_app || true
-            docker rm reimagina_urbano_app || true
+              docker stop reimagina_urbano_app || true
+              docker rm reimagina_urbano_app || true
 
-            echo "Starting new container..."
-            docker run -d \
-              --name reimagina_urbano_app \
-              -p 8000:8000 \
-              -e POSTGRES_USER="${POSTGRES_USER}" \
-              -e POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
-              -e POSTGRES_HOST="${POSTGRES_HOST}" \
-              -e POSTGRES_PORT=5432 \
-              -e POSTGRES_DB="${POSTGRES_DB}" \
-              -e ALLOWED_ORIGINS="${ALLOWED_ORIGINS}" \
-              --restart unless-stopped \
-              $IMAGE_NAME
+              docker run -d \
+                --name reimagina_urbano_app \
+                -p 8000:8000 \
+                -e POSTGRES_USER="$POSTGRES_USER" \
+                -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+                -e POSTGRES_HOST="$POSTGRES_HOST" \
+                -e POSTGRES_PORT=5432 \
+                -e POSTGRES_DB="$POSTGRES_DB" \
+                -e ALLOWED_ORIGINS="$ALLOWED_ORIGINS" \
+                --restart unless-stopped \
+                $IMAGE_NAME
+            EOF
 
-            echo "Deployment complete."
-          EOF
-        env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
