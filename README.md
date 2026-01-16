@@ -64,10 +64,13 @@ docker system prune -a --volumes
 ```
 
 ## Setup Docker run app locally
+
+[comment]: <> (Línea intermedia anteriormente: $ psql -U <user> -d reimaginaurbano -f init.sql)
+
 ```sh
 $ docker-compose up -d
-$ psql -U <user> -d reimaginaurbano -f init.sql
-$ poetry run python -m src.scripts.populate_db -l "data/_primavera/final/lots.csv" -b "data/_primavera/final/blocks.csv" -a "data/_primavera/final/accessibility_trips.csv"
+
+$ docker exec -it reimagina_urbano_app poetry run python -m src.scripts.populate_db -l "data/_primavera/final/lots.csv" -b "data/_primavera/final/blocks.csv" -a "data/_primavera/final/accessibility_trips.csv"
 ```
 
 ## Setup Docker run app in production

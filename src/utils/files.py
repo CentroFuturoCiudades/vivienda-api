@@ -39,20 +39,12 @@ def get_file(url):
     file_name = os.path.basename(parsed_url.path)
     file_path = f"{BASE_LOCATION}/{file_name}"
 
-    timestamps = load_timestamps()
-
     if os.path.isfile(file_path):
-        file_age = time.time() - timestamps.get(file_path, 0)
-        if file_age < TTL:
-            print(f"The file {file_path} exists and is within TTL.")
-            return file_path
-        else:
-            print(f"The file {file_path} exists but is older than TTL, dowloading again.")
+        print(f"The file {file_path} exists.")
     else:
-        print(f"The file {file_path} does not exist.")
-
-    download_file(url)
-    print("File downloaded")
+        download_file(url)
+        print("File downloaded")
+    
     return file_path
 
 BLOB_URL = "https://reimaginaurbanostorage.blob.core.windows.net"
